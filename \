@@ -1,0 +1,158 @@
+# templates.py
+
+HTML_CONTENT = """
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SixSense Doc-Converter</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background: #f9fafb; }
+        .drop-zone { border: 2px dashed #d1d5db; }
+        .drop-zone.active { border-color: #4F46E5; background: #EEF2FF; }
+    </style>
+</head>
+
+<body>
+
+<div class="max-w-5xl mx-auto mt-20 bg-white p-10 rounded-2xl shadow">
+
+    <h1 class="text-4xl font-bold mb-8 text-center">
+        👀 Six<span class="text-indigo-600">Sense</span>
+    </h1>
+
+    <form id="uploadForm" class="space-y-6">
+
+        <div id="dropZone" class="drop-zone p-16 text-center rounded-xl cursor-pointer bg-gray-50">
+            <p class="text-xl font-bold">파일을 클릭하거나 드래그하세요</p>
+            <input type="file" id="fileInput" class="hidden">
+        </div>
+
+        <div id="fileInfo" class="hidden bg-indigo-50 p-4 rounded flex justify-between items-center">
+            <span id="fileName"></span>
+            <button type="button" id="removeFile">❌</button>
+        </div>
+
+        <button class="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg">
+            변환 시작 ✨
+        </button>
+
+    </form>
+
+    <!-- ✅ 결과 영역 추가 -->
+    <div id="resultArea" class="hidden mt-10 text-center">
+        <p class="text-green-600 font-bold text-xl mb-4">✅ 변환 완료!</p>
+        <a id="downloadLink"
+           class="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold">
+           📥 PDF 다운로드
+        </a>
+    </div>
+
+</div>
+
+<!-- 로딩 -->
+<div id="loadingScreen" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white p-10 rounded-2xl text-center">
+        <p class="text-xl font-bold">인프라 엔진 가동 중...</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<script>
+
+const uploadForm = document.getElementById('uploadForm');
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const fileInfo = document.getElementById('fileInfo');
+const fileNameDisp = document.getElementById('fileName');
+const removeFileBtn = document.getElementById('removeFile');
+const loadingScreen = document.getElementById('loadingScreen');
+const resultArea = document.getElementById('resultArea');
+const downloadLink = document.getElementById('downloadLink');
+
+// 파일 선택
+fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+dropZone.addEventListener('click', () => fileInput.click());
+
+// 드래그 이벤트
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('active');
+});
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('active');
+});
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('active');
+    const file = e.dataTransfer.files[0];
+    fileInput.files = e.dataTransfer.files;
+    handleFileSelect(file);
+});
+
+function handleFileSelect(file) {
+    if (file) {
+        fileNameDisp.textContent = file.name;
+        fileInfo.classList.remove('hidden');
+
+        if (resultArea) {
+            resultArea.classList.add('hidden');
+        }
+    }
+}
+
+// 파일 제거
+removeFileBtn.addEventListener('click', () => {
+    fileInput.value = '';
+    fileInfo.classList.add('hidden');
+});
+
+// 업로드
+uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    loadingScreen.classList.remove('hidden');
+
+    if (resultArea) {
+        resultArea.classList.add('hidden');
+    }
+
+    try {
+        const response = await axios.post('/convert-to-pdf/', formData, {
+            responseType: 'blob'
+        });
+
+        const pdfUrl = window.URL.createObjectURL(
+            new Blob([response.data], { type: 'application/pdf' })
+        );
+
+        if (downloadLink && resultArea) {
+            downloadLink.href = pdfUrl;
+            downloadLink.download = file.name.split('.').slice(0, -1).join('.') + '.pdf';
+            resultArea.classList.remove('hidden');
+        }
+
+    } catch (error) {
+        alert('변환 실패!');
+    } finally {
+        loadingScreen.classList.add('hidden');
+    }
+});
+
+</script>
+
+</body>
+</html>
+"""
