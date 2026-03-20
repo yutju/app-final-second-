@@ -3,3 +3,40 @@ __pycache__/
 app.log
 temp_storage/
 venv/
+
+# 민감한 설정 파일 (API 키, 비번 등)
+.env
+config.json
+
+# 파이썬 캐시 및 가상환경
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 임시 저장소 및 로그 (변환된 파일들)
+temp_storage/
+*.pdf
+*.hwp
+*.docx
+*.txt
+*.png
+*.jpg
+*.jpeg
+storage/
+
+# OS 관련 파일
+.DS_Store
+Thumbs.db
+
+# 모든 .log 확장자 파일 차단
+*.log
+
+# 특정 로그 폴더 차단
+logs/
+log/
+
+# 파이썬 실행 로그 및 시스템 로그
+.pytest_cache/
+.ipynb_checkpoints/
+nohup.out
