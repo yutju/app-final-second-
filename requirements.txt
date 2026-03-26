@@ -1,13 +1,10 @@
 fastapi
 uvicorn
-python-multipart
-Pillow
 boto3
-PyPDF2==3.0.1
-img2pdf==0.5.1
-prometheus-client
-slowapi
-olefile
+python-multipart
 python-docx
-reportlab  # 텍스트 PDF 변환을 위해 추가 🎖️
-emoji
+reportlab
+pikepdf
+pypdf
+slowapi
+prometheus-client
