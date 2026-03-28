@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 libpangocairo-1.0-0 libpixman-1-0 libfontconfig1 \
     libxrender1 libxtst6 libxi6 libgl1-mesa-dri libglu1-mesa \
     xvfb x11-utils dbus-x11 xauth \
+    ghostscript \
     # 🔥 xauth 가 설치되어야 xvfb-run :error 가 해결됩니다 🕵️
     libqpdf-dev qpdf fontconfig \
     fonts-noto-color-emoji fonts-symbola fonts-nanum fonts-nanum-extra \

@@ -1,7 +1,7 @@
 # templates.py
 from components import ABOUT_SECTION, API_SECTION
 
-# 상단 UI 및 내비게이션 바 🕵️
+# 상단 UI 및 내비게이션 바 
 HTML_HEADER = """
 <!DOCTYPE html>
 <html lang="ko" style="scroll-behavior: smooth;">
@@ -25,8 +25,8 @@ HTML_HEADER = """
         .tab-btn.active { background-color: var(--primary); color: white; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4); }
         .tab-btn.inactive { background-color: #E5E7EB; color: #6B7280; }
         .sortable-ghost { opacity: 0.4; background: #EEF2FF !important; border: 2px dashed var(--primary) !important; }
-        
-        /* 🚀 성공 애니메이션 및 타이머 회전 */
+
+        /* 성공 애니메이션 및 타이머 회전 */
         @keyframes success-pop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
         .icon-pop { animation: success-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes slow-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -47,7 +47,7 @@ HTML_HEADER = """
             <div class="flex items-center space-x-8 text-sm font-bold text-gray-600">
                 <a href="#convert" class="hover:text-indigo-600 transition">변환하기</a>
                 <a href="#about" class="hover:text-indigo-600 transition">서비스 소개</a>
-                <a href="#api" class="hover:text-indigo-600 transition">API 문서</a> 
+                <a href="#api" class="hover:text-indigo-600 transition">API 문서</a>
                 <button class="bg-indigo-600 text-white px-6 py-2.5 rounded-full shadow-lg">Cloud Native</button>
             </div>
         </div>
@@ -70,16 +70,17 @@ HTML_HEADER = """
             <div class="grid grid-cols-1 md:grid-cols-3 gap-12 items-start">
                 <div class="md:col-span-1 pr-6 border-r border-gray-100 sticky top-32">
                     <h2 id="guideTitle" class="text-3xl font-black text-gray-900 mb-6">스마트 업로드</h2>
-                    <p id="guideDesc" class="text-gray-600 mb-8 leading-relaxed">PNG, JPG, DOCX, XLSX, PPTX, HWP, TXT 지원 (최대 100MB)</p>
-                    
+                    <p id="guideDesc" class="text-gray-600 mb-8 leading-relaxed">png, jpg, jpeg, bmp docx, xlsx, pptx, txt 지원 (최대 100MB)</p>
+
                     <div class="bg-gray-50 p-6 rounded-2xl border border-gray-200 space-y-4 shadow-sm mb-8">
                         <h3 class="font-black text-indigo-900 flex items-center text-sm">🛡️ 워터마크 옵션</h3>
                         <select id="wmType" class="w-full p-3 rounded-xl border-2 border-gray-200 font-bold text-sm focus:border-indigo-500 outline-none">
+                            <option value="none">❌ 워터마크 적용 안 함</option>
                             <option value="text">🔠 텍스트 워터마크</option>
                             <option value="image">🖼️ 로고 이미지</option>
                         </select>
-                        <div id="wmTextGroup">
-                            <input type="text" id="wmText" value="SIX SENSE" class="w-full p-3 rounded-xl border-2 border-gray-200 font-bold text-sm">
+                        <div id="wmTextGroup" class="hidden">
+                            <input type="text" id="wmText" placeholder="워터마크 문구 입력" class="w-full p-3 rounded-xl border-2 border-gray-200 font-bold text-sm">
                         </div>
                         <div id="wmImageGroup" class="hidden">
                             <input type="file" id="wmImage" accept="image/*" class="w-full text-xs font-bold text-gray-400">
@@ -122,15 +123,24 @@ HTML_HEADER = """
         </div>
 """
 
-# 하단 팝업(결과창 프리미엄 수정본), 로딩바, 스크립트 🕵️
+# 하단 팝업(결과창 프리미엄 수정본), 로딩바, 스크립트 
 HTML_FOOTER = """
         <p class="text-center text-gray-400 font-bold mt-12 font-poppins">© 2026 SixSense Project | Built for Infrastructure Engineers</p>
     </main>
 
     <div id="loadingScreen" class="hidden fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-md">
-        <div class="bg-white p-12 rounded-3xl text-center shadow-2xl max-w-sm w-full mx-6">
+        <div class="bg-white p-12 rounded-3xl text-center shadow-2xl max-w-md w-full mx-6">
             <div class="loader-ring mx-auto mb-8"><div></div></div>
-            <p id="loadingText" class="text-xl font-black text-gray-800">엔진 가동 중...</p>
+            <div class="space-y-4">
+                <div class="flex justify-between items-end mb-1">
+                    <p id="loadingStatus" class="text-sm font-black text-indigo-600">엔진 시동 중...</p>
+                    <p id="percentText" class="text-2xl font-black text-gray-800 font-poppins">0%</p>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden border border-gray-100">
+                    <div id="progressBar" class="bg-indigo-600 h-full w-0 transition-all duration-500 ease-out shadow-[0_0_15px_rgba(79,70,229,0.5)]"></div>
+                </div>
+                <p id="loadingSubText" class="text-xs text-gray-400 font-bold">인프라 자원을 할당받고 있습니다...</p>
+            </div>
         </div>
     </div>
 
@@ -140,16 +150,16 @@ HTML_FOOTER = """
             <div class="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] rounded-full bg-emerald-500/15 blur-[120px] animate-pulse" style="animation-delay: 1.5s;"></div>
         </div>
 
-        <div class="p-12 rounded-[3.5rem] text-center shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border border-white/40 max-w-lg w-full mx-6 relative z-10 icon-pop" 
+        <div class="p-12 rounded-[3.5rem] text-center shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border border-white/40 max-w-lg w-full mx-6 relative z-10 icon-pop"
              style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(50px);">
-            
+
             <div class="flex justify-center mb-8">
-                <div class="text-9xl animate-bounce">🎉</div> 
+                <div class="text-9xl animate-bounce">🎉</div>
             </div>
 
             <h2 class="text-5xl font-black text-gray-900 tracking-tighter mb-2">변환 완료!</h2>
             <p class="text-gray-600 font-bold mb-6">S3 인프라 보안 저장소 보관 완료</p>
-            
+
             <div class="inline-flex items-center space-x-3 px-6 py-2 rounded-full bg-white/50 border border-gray-200 text-gray-600 font-black mb-10 shadow-sm">
                 <span class="text-xl animate-spin-slow">⏱️</span>
                 <span id="expiryTimer">05:00 후 자동 파기</span>
@@ -181,6 +191,7 @@ HTML_FOOTER = """
 
         let currentDownloadUrl = "";
         let timerInterval = null;
+        let progressInterval = null;
 
         function validateFile(file) {
             const fileName = file.name.toLowerCase();
@@ -248,6 +259,39 @@ HTML_FOOTER = """
             setTimeout(() => { toast.style.opacity = "0"; setTimeout(() => toast.remove(), 500); }, 3000);
         }
 
+        //  프로그레스 바 제어 로직
+        function updateProgress(targetPercent, statusText, subText) {
+            const bar = document.getElementById('progressBar');
+            const percentText = document.getElementById('percentText');
+            const status = document.getElementById('loadingStatus');
+            const sub = document.getElementById('loadingSubText');
+
+            status.textContent = statusText;
+            sub.textContent = subText;
+            bar.style.width = targetPercent + '%';
+            percentText.textContent = targetPercent + '%';
+        }
+
+        function startFakeProgress() {
+            let current = 0;
+            updateProgress(5, "엔진 초기화", "LibreOffice 인스턴스를 생성합니다...");
+            
+            if (progressInterval) clearInterval(progressInterval);
+            
+            progressInterval = setInterval(() => {
+                if (current < 30) {
+                    current += Math.floor(Math.random() * 3) + 1;
+                    updateProgress(current, "문서 분석 중", "파일 구조를 스캔하고 있습니다.");
+                } else if (current < 65) {
+                    current += Math.floor(Math.random() * 2) + 1;
+                    updateProgress(current, "PDF 레이어 변환", "고성능 Ghostscript 엔진 최적화 중...");
+                } else if (current < 92) {
+                    current += 1;
+                    updateProgress(current, "보안 워터마크 합성", "SixSense Secured 레이어를 입히는 중...");
+                }
+            }, 700);
+        }
+
         wmType.onchange = () => {
             wmTextGroup.classList.toggle('hidden', wmType.value !== 'text');
             wmImageGroup.classList.toggle('hidden', wmType.value !== 'image');
@@ -290,10 +334,19 @@ HTML_FOOTER = """
             if(wmType.value === 'image' && wmImgInput.files[0]) formData.append('wm_image', wmImgInput.files[0]);
 
             document.getElementById('loadingScreen').classList.remove('hidden');
+            startFakeProgress();
+
             try {
                 const res = await axios.post('/convert-single/', formData);
-                showResult(res.data.download_url);
-            } catch (err) { alert('변환 실패!'); } finally { document.getElementById('loadingScreen').classList.add('hidden'); }
+                clearInterval(progressInterval);
+                updateProgress(100, "완료!", "S3 업로드에 성공했습니다. ✨");
+                setTimeout(() => showResult(res.data.download_url), 600);
+            } catch (err) { 
+                clearInterval(progressInterval);
+                alert('변환 실패!'); 
+            } finally { 
+                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000); 
+            }
         }
 
         const listMerge = document.getElementById('listMerge');
@@ -360,10 +413,19 @@ HTML_FOOTER = """
             if(wmType.value === 'image' && wmImgInput.files[0]) formData.append('wm_image', wmImgInput.files[0]);
 
             document.getElementById('loadingScreen').classList.remove('hidden');
+            startFakeProgress();
+
             try {
                 const res = await axios.post('/convert-merge/', formData);
-                showResult(res.data.download_url);
-            } catch (err) { alert('병합 실패!'); } finally { document.getElementById('loadingScreen').classList.add('hidden'); }
+                clearInterval(progressInterval);
+                updateProgress(100, "병합 완료!", "최종 PDF가 생성되었습니다. ✨");
+                setTimeout(() => showResult(res.data.download_url), 600);
+            } catch (err) { 
+                clearInterval(progressInterval);
+                alert('병합 실패!'); 
+            } finally { 
+                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000); 
+            }
         }
 
         function showResult(url) {
@@ -382,7 +444,7 @@ HTML_FOOTER = """
                 const dropped = Array.from(e.dataTransfer.files);
                 if(dz.id === 'dropZoneSingle') {
                     if(validateFile(dropped[0])) { singleFile = dropped[0]; nameSingle.textContent = singleFile.name; infoSingle.classList.remove('hidden'); }
-                } else { 
+                } else {
                     dropped.forEach(f => { if(mergeFiles.length < 10 && validateFile(f)) { f.uniqueId = Date.now()+Math.random(); mergeFiles.push(f); } });
                     updateMergeList(true);
                 }
