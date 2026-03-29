@@ -10,7 +10,7 @@ from botocore.config import Config
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles  # 👈 정적 파일 처리를 위해 추가
+from fastapi.staticfiles import StaticFiles  #  정적 파일 처리를 위해 추가
 from starlette.responses import Response
 
 #  모니터링 라이브러리
