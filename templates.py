@@ -1,7 +1,7 @@
 # templates.py
 from components import ABOUT_SECTION, API_SECTION
 
-# 상단 UI 및 내비게이션 바 
+# 상단 UI 및 내비게이션 바
 HTML_HEADER = """
 <!DOCTYPE html>
 <html lang="ko" style="scroll-behavior: smooth;">
@@ -26,7 +26,6 @@ HTML_HEADER = """
         .tab-btn.inactive { background-color: #E5E7EB; color: #6B7280; }
         .sortable-ghost { opacity: 0.4; background: #EEF2FF !important; border: 2px dashed var(--primary) !important; }
 
-        /* 성공 애니메이션 및 타이머 회전 */
         @keyframes success-pop { 0% { transform: scale(0.5); opacity: 0; } 70% { transform: scale(1.05); } 100% { transform: scale(1); opacity: 1; } }
         .icon-pop { animation: success-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes slow-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -40,8 +39,8 @@ HTML_HEADER = """
 <body class="min-h-screen">
     <nav class="glass-card sticky top-0 z-50 border-b shadow-sm">
         <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div class="flex items-center space-x-2">
-                <span class="text-3xl">👀</span>
+            <div class="flex items-center space-x-3">
+                <img src="/static/sixsenselogo.png" alt="SixSense Logo" class="h-10 w-auto object-contain rounded-lg">
                 <span class="text-3xl font-extrabold tracking-tighter text-gray-900 font-poppins">SixSense</span>
             </div>
             <div class="flex items-center space-x-8 text-sm font-bold text-gray-600">
@@ -97,7 +96,7 @@ HTML_HEADER = """
                     <div id="sectionSingle" class="space-y-6">
                         <div id="dropZoneSingle" class="drop-zone bg-gray-50 hover:bg-white shadow-inner p-10">
                             <div class="text-7xl mb-4">📄</div>
-                            <p class="text-2xl font-black text-gray-800">단일 파일을 드래그하세요</p>
+                            <p class="text-2xl font-black text-gray-800">단일 파일을 드래그 또는 클릭하여 업로드하세요.</p>
                             <input type="file" id="inputSingle" class="hidden">
                         </div>
                         <div id="infoSingle" class="hidden bg-white p-6 rounded-2xl border-2 border-indigo-100 flex justify-between items-center shadow-lg">
@@ -110,7 +109,7 @@ HTML_HEADER = """
                     <div id="sectionMerge" class="hidden space-y-6">
                         <div id="dropZoneMerge" class="drop-zone bg-gray-50 hover:bg-white shadow-inner p-10">
                             <div class="text-7xl mb-4">📑📑</div>
-                            <p class="text-2xl font-black text-gray-800">여러 파일을 드래그하세요</p>
+                            <p class="text-2xl font-black text-gray-800">여러 파일을 드래그하거나 클릭하여 업로드하세요.</p>
                             <p class="text-sm text-gray-400 mt-2 font-bold" id="mergeStatus">현재 0 / 10개 선택됨</p>
                             <input type="file" id="inputMerge" class="hidden" multiple>
                         </div>
@@ -123,7 +122,6 @@ HTML_HEADER = """
         </div>
 """
 
-# 하단 팝업(결과창 프리미엄 수정본), 로딩바, 스크립트 
 HTML_FOOTER = """
         <p class="text-center text-gray-400 font-bold mt-12 font-poppins">© 2026 SixSense Project | Built for Infrastructure Engineers</p>
     </main>
@@ -150,30 +148,30 @@ HTML_FOOTER = """
             <div class="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] rounded-full bg-emerald-500/15 blur-[120px] animate-pulse" style="animation-delay: 1.5s;"></div>
         </div>
 
-        <div class="p-12 rounded-[3.5rem] text-center shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border border-white/40 max-w-lg w-full mx-6 relative z-10 icon-pop"
+        <div class="p-16 rounded-[3.5rem] text-center shadow-[0_35px_60px_-15px_rgba(0,0,0,0.3)] border border-white/40 max-w-2xl w-full mx-6 relative z-10 icon-pop"
              style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(50px);">
 
-            <div class="flex justify-center mb-8">
-                <div class="text-9xl animate-bounce">🎉</div>
+            <div class="flex justify-center mb-10">
+                <img src="/static/convert.png" alt="Success" class="w-64 h-auto object-contain animate-bounce bg-transparent pointer-events-none">
             </div>
 
-            <h2 class="text-5xl font-black text-gray-900 tracking-tighter mb-2">변환 완료!</h2>
-            <p class="text-gray-600 font-bold mb-6">S3 인프라 보안 저장소 보관 완료</p>
+            <h2 class="text-6xl font-black text-gray-900 tracking-tighter mb-4">변환 완료!</h2>
+            <p class="text-xl text-gray-600 font-bold mb-8 opacity-90">pdf 파일 변환 및 S3 보관 완료</p>
 
-            <div class="inline-flex items-center space-x-3 px-6 py-2 rounded-full bg-white/50 border border-gray-200 text-gray-600 font-black mb-10 shadow-sm">
-                <span class="text-xl animate-spin-slow">⏱️</span>
-                <span id="expiryTimer">05:00 후 자동 파기</span>
+            <div class="inline-flex items-center space-x-3 px-8 py-3 rounded-full bg-white/50 border border-gray-200 text-gray-700 font-black mb-12 shadow-sm">
+                <span class="text-2xl animate-spin-slow">⏱️</span>
+                <span id="expiryTimer" class="text-lg">05:00 후 자동 파기</span>
             </div>
 
-            <div class="space-y-4">
-                <a id="downloadLink" href="#" download class="flex items-center justify-center space-x-3 bg-indigo-600 text-white font-black p-6 w-full rounded-2xl text-2xl shadow-lg hover:bg-indigo-700 transition transform hover:-translate-y-1 active:scale-95">
-                    <span>📥</span> <span>PDF 다운로드</span>
+            <div class="space-y-5">
+                <a id="downloadLink" href="#" download class="flex items-center justify-center bg-indigo-600 text-white font-black p-6 w-full rounded-2xl text-3xl shadow-lg hover:bg-indigo-700 transition transform hover:-translate-y-1 active:scale-95">
+                    <span>PDF 다운로드 📥</span>
                 </a>
-                <button onclick="copyToClipboard()" id="copyBtn" class="flex items-center justify-center space-x-3 bg-white/80 text-gray-700 font-bold p-5 w-full rounded-2xl border border-gray-200 shadow-sm hover:bg-white transition active:scale-95">
+                <button onclick="copyToClipboard()" id="copyBtn" class="flex items-center justify-center space-x-3 bg-white/80 text-gray-700 font-bold p-5 w-full rounded-2xl border border-gray-200 shadow-sm hover:bg-white transition active:scale-95 text-lg">
                     <span>🔗</span> <span id="copyBtnText">S3 PDF 공유 링크 복사</span>
                 </button>
             </div>
-            <button onclick="location.reload()" class="mt-10 text-gray-400 hover:text-indigo-600 text-sm font-bold underline transition-colors">새 문서 변환하기</button>
+            <button onclick="location.reload()" class="mt-12 text-gray-400 hover:text-indigo-600 text-base font-bold underline transition-colors">새 문서 변환하기</button>
         </div>
     </div>
 
@@ -259,7 +257,6 @@ HTML_FOOTER = """
             setTimeout(() => { toast.style.opacity = "0"; setTimeout(() => toast.remove(), 500); }, 3000);
         }
 
-        //  프로그레스 바 제어 로직
         function updateProgress(targetPercent, statusText, subText) {
             const bar = document.getElementById('progressBar');
             const percentText = document.getElementById('percentText');
@@ -275,9 +272,7 @@ HTML_FOOTER = """
         function startFakeProgress() {
             let current = 0;
             updateProgress(5, "엔진 초기화", "LibreOffice 인스턴스를 생성합니다...");
-            
             if (progressInterval) clearInterval(progressInterval);
-            
             progressInterval = setInterval(() => {
                 if (current < 30) {
                     current += Math.floor(Math.random() * 3) + 1;
@@ -341,11 +336,11 @@ HTML_FOOTER = """
                 clearInterval(progressInterval);
                 updateProgress(100, "완료!", "S3 업로드에 성공했습니다. ✨");
                 setTimeout(() => showResult(res.data.download_url), 600);
-            } catch (err) { 
+            } catch (err) {
                 clearInterval(progressInterval);
-                alert('변환 실패!'); 
-            } finally { 
-                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000); 
+                alert('변환 실패!');
+            } finally {
+                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000);
             }
         }
 
@@ -420,11 +415,11 @@ HTML_FOOTER = """
                 clearInterval(progressInterval);
                 updateProgress(100, "병합 완료!", "최종 PDF가 생성되었습니다. ✨");
                 setTimeout(() => showResult(res.data.download_url), 600);
-            } catch (err) { 
+            } catch (err) {
                 clearInterval(progressInterval);
-                alert('병합 실패!'); 
-            } finally { 
-                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000); 
+                alert('병합 실패!');
+            } finally {
+                setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000);
             }
         }
 
