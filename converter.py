@@ -30,7 +30,7 @@ def run_libreoffice(input_file, outdir, env):
         "--nolockcheck",
         "--nologo",
         "--norestore",
-        # 🔥 핵심: 단순 'pdf'가 아닌 'writer_pdf_Export' 필터를 써야 표 선과 위치가 잡힙니다.
+        #  핵심: 단순 'pdf'가 아닌 'writer_pdf_Export' 필터를 써야 표 선과 위치가 잡힙니다.
         "--convert-to", "pdf:writer_pdf_Export",
         "--outdir", outdir,
         input_file
