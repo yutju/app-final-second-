@@ -13,13 +13,13 @@ def run_libreoffice(input_file, outdir, env):
     표 레이아웃 무너짐을 방지하기 위해 독립된 프로필과 인쇄용 필터를 사용합니다.
     """
     ts = str(int(time.time() * 1000))
-    # ✅ 각 작업마다 독립된 사용자 프로필 폴더를 생성하여 설정 충돌 방지
+    #  각 작업마다 독립된 사용자 프로필 폴더를 생성하여 설정 충돌 방지
     user_profile = os.path.join(env["HOME"], f"profile_{ts}")
     
     cmd = [
         "xvfb-run", 
         "-a", 
-        # ✅ 가상 디스플레이 설정을 강화하여 그래픽 객체(표) 인식률 향상
+        #  가상 디스플레이 설정을 강화하여 그래픽 객체(표) 인식률 향상
         "-s", "-screen 0 1920x1080x24 -ac +extension GLX +render -noreset",
         "libreoffice",
         f"-env:UserInstallation=file://{user_profile}",
@@ -62,7 +62,7 @@ def process_conversion(input_path, output_path, ext, temp_dir):
     이미지 및 문서 파일 변환 로직의 메인 프로세스입니다.
     """
     try:
-        # ✅ 1. 이미지 파일 처리 (PIL 사용)
+        #  1. 이미지 파일 처리 (PIL 사용)
         if ext in ["png", "jpg", "jpeg", "bmp"]:
             with Image.open(input_path) as img:
                 if img.mode != "RGB":
@@ -70,7 +70,7 @@ def process_conversion(input_path, output_path, ext, temp_dir):
                 img.save(output_path, "PDF")
             return
 
-        # ✅ 2. 문서 파일 처리 (LibreOffice 사용)
+        #  2. 문서 파일 처리 (LibreOffice 사용)
         elif ext in ["docx", "txt", "hwp"]:
             abs_temp_dir = os.path.abspath(temp_dir)
             ts = str(int(time.time() * 1000))
@@ -90,7 +90,7 @@ def process_conversion(input_path, output_path, ext, temp_dir):
             env["LC_ALL"] = "ko_KR.UTF-8"
             env["LANGUAGE"] = "ko_KR:ko"
             
-            # 🔥 표 깨짐 방지를 위해 가장 안정적인 'gen' 엔진 사용
+            #  표 깨짐 방지를 위해 가장 안정적인 'gen' 엔진 사용
             env["SAL_USE_VCLPLUGIN"] = "gen"
             env["FONTCONFIG_PATH"] = "/etc/fonts"
 
