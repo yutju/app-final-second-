@@ -1,3 +1,4 @@
+
 from components import ABOUT_SECTION, API_SECTION
 
 # 상단 UI 및 내비게이션 바
@@ -84,7 +85,7 @@ HTML_HEADER = """
     <header class="gradient-bg py-24 text-white text-center">
         <div class="max-w-5xl mx-auto px-6">
             <h1 class="text-6xl font-black tracking-tight leading-tight font-poppins mb-6">단 한 번의 드래그로,<br>모든 문서를 <span class="text-yellow-300">완벽한 PDF</span>로</h1>
-            <p class="text-xl font-light opacity-90"> IT 엔지니어를 듀얼 엔진 PDF 통합 변환 서비스</p>
+            <p class="text-xl font-light opacity-90"> IT 엔지니어를 위한 듀얼 엔진 PDF 통합 변환 서비스</p>
         </div>
     </header>
 
