@@ -1,0 +1,39 @@
+# Git 관련 파일
+.git
+.gitignore
+
+# 문서 및 환경 설정 파일 (요청하신 사항)
+*.md
+README.md
+LICENSE
+*.sh
+.env
+
+# Python 관련 임시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache
+.venv
+venv
+env
+
+# 앱 실행 중 생성되는 임시 저장소 (매우 중요)
+temp_storage/
+static/output/
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.png
+*.jpg
+*.jpeg
+
+# Docker 관련
+Dockerfile
+.dockerignore
+
+# 운영체제/IDE 관련
+.DS_Store
+.vscode
+.idea

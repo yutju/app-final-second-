@@ -43,8 +43,6 @@ config.json
 *.tfstate.backup
 .terraform/
 
-# 도커 관련
-.dockerignore
 
 # --- 5. OS 및 IDE 설정 ---
 .DS_Store
