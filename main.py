@@ -3,6 +3,7 @@ import uuid
 import shutil
 import logging
 import time
+import subprocess
 from enum import Enum
 from typing import Optional, List
 
