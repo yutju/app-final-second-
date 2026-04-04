@@ -1,190 +1,204 @@
-# SixSense Doc Converter
+# SixSense Doc-Converter
 
-문서 파일을 PDF로 변환하고, 워터마크 삽입 및 다중 파일 병합을 지원하는 FastAPI 기반 서비스입니다. 변환된 파일은 AWS S3에 업로드되며, 5분간 유효한 Pre-signed URL로 안전하게 배포됩니다.
-
----
-
-## 주요 기능
-
-- **단일 파일 변환** — `docx`, `txt`, `hwp`, `png`, `jpg`, `jpeg`, `bmp` → PDF
-- **다중 파일 병합** — 최대 10개 파일을 하나의 PDF로 병합
-- **워터마크 삽입** — 텍스트 또는 이미지 워터마크 지원
-- **PDF 압축** — Ghostscript 기반 고품질 압축
-- **S3 업로드 및 Pre-signed URL** — 변환 완료 후 5분 유효 다운로드 링크 발급
-- **Rate Limiting** — slowapi 기반 API 호출 횟수 제한
-- **Prometheus 메트릭** — 변환 횟수, S3 업로드 지연 등 실시간 모니터링
+> **단 한 번의 드래그로, 모든 문서를 완벽한 PDF로**  
+> DevSecOps 기반 클라우드 네이티브 문서 변환 서비스
 
 ---
 
-## 프로젝트 구조
+## 📌 프로젝트 개요
+
+SixSense Doc-Converter는 다양한 문서 포맷을 PDF로 변환하고, 워터마크 삽입 · 다중 파일 병합 · 비밀번호 암호화 · S3 보안 스토리지 연동까지 제공하는 통합 변환 서비스입니다.  
+모든 인프라는 **Terraform IaC**로 관리되며, **GitHub Actions CI/CD** 파이프라인에서 **Trivy + Checkov** 보안 스캐닝을 자동 수행합니다.
+
+---
+
+## 🚀 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| 단일 파일 변환 | DOCX, XLSX, PPTX, TXT, HWP, PNG, JPG, BMP → PDF |
+| 다중 파일 병합 | 최대 10개 파일을 순서 지정 후 하나의 PDF로 병합 |
+| 텍스트 워터마크 | 위치 · 크기 · 투명도 · 회전 각도 커스터마이징 |
+| 이미지 워터마크 | 로고 PNG/JPG 업로드, 동일한 커스터마이징 옵션 지원 |
+| 페이지 번호 삽입 | `- Page N / Total -` 형식으로 하단 자동 삽입 |
+| PDF 비밀번호 암호화 | AES-128(R=4) 기반 열기 비밀번호 설정 |
+| S3 보안 스토리지 | 변환 결과물을 S3에 격리 저장, IAM Pre-signed URL(5분) 발급 후 자동 파기 |
+| Rate Limiting | 단일 변환 10req/min, 병합 변환 5req/min |
+
+---
+
+## 🗂️ 프로젝트 구조
 
 ```
 .
-├── main.py           # FastAPI 앱, 엔드포인트, S3 연동
-├── processor.py      # PDF 변환, 병합, 워터마크 처리
-├── converter.py      # LibreOffice 실행 및 단일 파일 변환
-├── templates.py      # 프론트엔드 HTML 템플릿
-├── components.py     # About / API 섹션 HTML 컴포넌트
-├── requirements.txt  # Python 의존성
-└── Dockerfile        # 컨테이너 빌드 설정
+├── main.py              # FastAPI 앱 진입점, 라우팅, S3 업로드
+├── processor.py         # PDF 변환·병합·워터마크 처리 엔진
+├── converter.py         # LibreOffice 래퍼 (xvfb-run 기반 headless 변환)
+├── templates.py         # 프론트엔드 HTML/CSS/JS (인라인 Single Page)
+├── components.py        # About 섹션, API 문서 섹션 HTML 컴포넌트
+├── requirements.txt     # Python 패키지 목록
+├── Dockerfile           # 컨테이너 빌드 정의
+├── static/
+│   ├── sixsenselogo.png # 서비스 로고
+│   └── convert.png      # 변환 완료 아이콘
+└── temp_storage/        # 변환 임시 파일 (자동 생성 · 자동 정리)
 ```
 
 ---
 
-## 기술 스택
+## ⚙️ 기술 스택
 
-| 영역 | 사용 기술 |
-|---|---|
-| 웹 프레임워크 | FastAPI, Uvicorn |
-| 문서 변환 엔진 | LibreOffice (xvfb-run), Pillow |
-| PDF 처리 | pikepdf, pypdf, ReportLab |
-| PDF 압축 | Ghostscript |
-| 클라우드 스토리지 | AWS S3 (boto3, IAM Pre-signed URL) |
-| 보안 / 속도제한 | slowapi |
-| 모니터링 | Prometheus, prometheus-fastapi-instrumentator |
-| 컨테이너 | Docker (python:3.10-bookworm) |
-| 한글 폰트 | NanumGothic, Noto Color Emoji |
+### Backend
+- **Python 3.10** / **FastAPI** — 비동기 API 서버
+- **LibreOffice** (xvfb-run headless) — DOCX/XLSX/PPTX/HWP → PDF 변환
+- **Ghostscript** — 다중 PDF 병합
+- **pikepdf** — 워터마크 오버레이, PDF 암호화
+- **ReportLab** — 워터마크 레이어 생성
+- **Pillow** — 이미지 전처리 (모드 정규화, PNG 변환)
+- **boto3** — AWS S3 업로드 및 Pre-signed URL 생성
+- **slowapi** — Rate Limiting
+
+### Frontend
+- **Vanilla JS** (Axios, SortableJS) — 드래그&드롭, 파일 순서 변경
+- **Tailwind CSS** — UI 스타일링
+- **Canvas API** — 워터마크 실시간 A4 미리보기
+
+### Infrastructure
+- **Docker** — 컨테이너 기반 배포
+- **AWS EC2** — 애플리케이션 서버
+- **AWS S3 + IAM** — 결과물 보안 스토리지 및 Pre-signed URL
+- **Terraform** — IaC 인프라 관리
+- **GitHub Actions** — CI/CD 파이프라인
+- **Trivy + Checkov** — 이미지 및 코드 보안 스캐닝
+- **WAF (ModSecurity)** — 악성 웹 요청 차단
+- **Snort IDS / netfilter IPS** — 네트워크 침입 탐지 및 차단
+- **Falco** — 쿠버네티스 런타임 보안 감시
+- **Kafka** — 보안 이벤트 로그 실시간 백업
+- **Prometheus + Grafana** — 서비스 모니터링
 
 ---
 
-## 환경변수
+## 📦 설치 및 실행
 
-| 변수명 | 설명 | 기본값 |
-|---|---|---|
-| `S3_BUCKET_NAME` | 변환 결과물을 저장할 S3 버킷 이름 | `sixsense-pdf-storage` |
+### 사전 요구사항
+- Docker
+- AWS 자격증명 (IAM Role 또는 `.env` 파일)
 
-S3 인증은 EC2 IAM 인스턴스 프로파일을 통해 자동으로 처리됩니다. 별도의 액세스 키 설정이 필요하지 않습니다.
+### 환경변수 설정
 
----
+`.env` 파일을 프로젝트 루트에 생성합니다.
 
-## 실행 방법
+```env
+S3_BUCKET_NAME=your-s3-bucket-name
+AWS_DEFAULT_REGION=ap-northeast-2
+```
 
-### Docker
+IAM Role이 EC2에 연결돼 있으면 별도 키 설정 없이 자동 인증됩니다.
+
+### Docker로 실행
 
 ```bash
-docker build -t sixsense-converter .
-docker run -p 8000:8000 \
-  -e S3_BUCKET_NAME=your-bucket-name \
-  sixsense-converter
+# 이미지 빌드
+docker build -t doc-converter .
+
+# 컨테이너 실행
+docker run -d \
+  --name sixsense-converter \
+  --env-file .env \
+  -p 8000:8000 \
+  doc-converter
 ```
 
-### 로컬 (개발 환경)
+### 접속
 
-LibreOffice, Ghostscript, xvfb 등 시스템 의존성이 사전 설치되어 있어야 합니다.
-
-```bash
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+http://localhost:8000
 ```
 
 ---
 
-## API 명세
+## 🔌 API 명세
 
 ### `POST /convert-single/`
 
 단일 파일을 PDF로 변환합니다.
 
-- **Rate Limit:** 10회 / 분
-- **Content-Type:** `multipart/form-data`
-
 | 파라미터 | 타입 | 필수 | 설명 |
-|---|---|---|---|
+|----------|------|------|------|
 | `file` | File | ✅ | 변환할 파일 |
-| `wm_type` | string | ❌ | 워터마크 종류 (`text` \| `image` \| `none`) |
-| `wm_text` | string | ❌ | 텍스트 워터마크 내용 |
-| `wm_image` | File | ❌ | 이미지 워터마크 파일 |
+| `wm_type` | string | | `none` / `text` / `image` (기본: `none`) |
+| `wm_text` | string | | 텍스트 워터마크 문구 |
+| `wm_image` | File | | 이미지 워터마크 파일 |
+| `wm_position` | string | | `center` / `top-left` / `top-right` / `bottom-left` / `bottom-right` |
+| `wm_size` | float | | 워터마크 크기 (기본: 60.0) |
+| `wm_opacity` | float | | 투명도 0.0~1.0 (기본: 0.3) |
+| `wm_rotation` | float | | 회전 각도 (기본: 45.0) |
+| `pdf_pw` | string | | PDF 열기 비밀번호 |
+| `use_pg_num` | bool | | 페이지 번호 삽입 여부 (기본: false) |
 
-**응답**
-```json
-{ "download_url": "https://s3.amazonaws.com/..." }
-```
+**Rate Limit:** 10 req/min
 
 ---
 
 ### `POST /convert-merge/`
 
-여러 파일을 하나의 PDF로 병합합니다.
-
-- **Rate Limit:** 5회 / 분
-- **Content-Type:** `multipart/form-data`
-- **최대 파일 수:** 10개
+여러 파일을 병합하여 하나의 PDF로 변환합니다.
 
 | 파라미터 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `files` | File[] | ✅ | 병합할 파일 목록 |
-| `wm_type` | string | ❌ | 워터마크 종류 (`text` \| `image` \| `none`) |
-| `wm_text` | string | ❌ | 텍스트 워터마크 내용 |
-| `wm_image` | File | ❌ | 이미지 워터마크 파일 |
+|----------|------|------|------|
+| `files` | File[] | ✅ | 병합할 파일 배열 |
+| 나머지 파라미터 | | | `/convert-single/`과 동일 |
 
-**응답**
+**Rate Limit:** 5 req/min
+
+---
+
+**응답 예시**
+
 ```json
-{ "download_url": "https://s3.amazonaws.com/..." }
+{
+  "download_url": "https://s3.amazonaws.com/bucket/output/uuid.pdf?X-Amz-..."
+}
 ```
 
----
-
-### `GET /health`
-
-컨테이너 생존 여부를 확인합니다 (Liveness Probe).
-
-### `GET /ready`
-
-서비스 준비 상태를 확인합니다 (Readiness Probe). 스토리지 쓰기 권한 및 환경변수 로드 여부를 점검합니다.
-
-### `GET /metrics`
-
-Prometheus 메트릭 엔드포인트입니다.
+> Pre-signed URL은 발급 후 **5분간 유효**하며 이후 자동 만료됩니다.
 
 ---
 
-## 변환 파이프라인
+## 🛡️ 보안 설계
 
-```
-파일 업로드
-    │
-    ▼
-파일 형식 판별
-    ├─ 이미지 (png/jpg/bmp) ──→ Pillow → PDF 조각
-    └─ 문서 (docx/txt/hwp) ──→ LibreOffice (xvfb-run) → PDF 조각
-    │
-    ▼
-pikepdf로 PDF 조각 병합
-    │
-    ▼
-ReportLab으로 워터마크 합성 (선택)
-    │
-    ▼
-Ghostscript로 PDF 압축
-    │
-    ▼
-AWS S3 업로드 → Pre-signed URL 발급 (유효시간 5분)
-    │
-    ▼
-임시 파일 전량 삭제
-```
+- 업로드 파일은 `temp_storage/`에 UUID 파일명으로 저장되며 변환 완료 후 **즉시 삭제**됩니다.
+- 변환 결과 PDF는 S3에 `output/{uuid}.pdf` 경로로 격리 저장됩니다.
+- Pre-signed URL은 **300초(5분) 후 만료**되며 이후 접근이 불가합니다.
+- PDF 암호화는 **AES-128 (PDF R=4)** 표준을 사용합니다.
+- LibreOffice 변환은 요청마다 **독립 UserInstallation 프로필**을 생성하여 설정 충돌을 방지합니다.
 
 ---
 
-## 보안 고려사항
+## 🐳 Dockerfile 주요 설정
 
-- 변환에 사용된 임시 파일은 처리 완료 즉시 삭제됩니다.
-- Pre-signed URL은 발급 후 **5분 뒤 자동 만료**됩니다.
-- LibreOffice 실행 시 매 요청마다 **독립된 사용자 프로필**을 생성하여 설정 충돌 및 정보 유출을 방지합니다.
-- Rate Limiter를 통해 클라이언트 IP 기반 요청 횟수를 제한합니다.
+| 항목 | 내용 |
+|------|------|
+| 베이스 이미지 | `python:3.10-bookworm` |
+| 한국어 폰트 | `fonts-nanum`, `fonts-nanum-extra` 설치 |
+| 폰트 대체 규칙 | 맑은 고딕 → NanumGothic, Segoe UI Emoji → Noto Color Emoji |
+| 가상 디스플레이 | `xvfb` + `xauth` (LibreOffice headless 그래픽 렌더링) |
+| PDF 병합 | `ghostscript` |
+| 포트 | `8000` |
 
 ---
 
-## 지원 파일 형식
+## 📋 지원 파일 형식
 
-| 형식 | 변환 엔진 | 비고 |
-|---|---|---|
-| `docx` | LibreOffice | |
-| `xlsx` | LibreOffice | |
-| `pptx` | LibreOffice | |
-| `txt` | LibreOffice | UTF-8 인코딩 보정 적용 |
-| `hwp` | LibreOffice | |
-| `png` / `jpg` / `jpeg` | Pillow | |
-| `bmp` | Pillow | RGB 변환 후 처리 |
+| 분류 | 확장자 |
+|------|--------|
+| 문서 | `.docx`, `.xlsx`, `.pptx`, `.txt`, `.hwp` |
+| 이미지 | `.png`, `.jpg`, `.jpeg`, `.bmp` |
+| 최대 파일 크기 | 50MB |
+| 최대 병합 파일 수 | 10개 |
 
-> LibreOffice가 지원하는 형식이라면 위 목록 외의 파일도 변환될 수 있습니다 (`odt`, `ppt`, `xls` 등).
+---
+
+## 📄 라이선스
+
+© 2026 SixSense Project | Built for Infrastructure Engineers
