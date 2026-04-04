@@ -7,6 +7,7 @@ from typing import Optional, List
 import boto3
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -24,6 +25,9 @@ S3_BUCKET = os.getenv("S3_BUCKET_NAME", "sixsense-pdf-storage")
 s3_client = boto3.client("s3", region_name="ap-northeast-2")
 
 app = FastAPI()
+
+# Static 파일 서빙 (/static → /app/static 디렉토리)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -115,31 +119,6 @@ async def convert_merge(
     final_output_path = os.path.join(TEMP_DIR, f"{merge_id}_final.pdf")
     wm_image_path = None
 
-    # -------------------------------
-    # 🖼 워터마크 이미지 - 요청 수신 직후 즉시 읽기
-    # (UploadFile 스트림은 한 번만 읽을 수 있으므로 가장 먼저 처리)
-    # -------------------------------
-    if wm_type == "image" and wm_image is not None:
-        logger.info(f"[MAIN] 워터마크 이미지 수신 - filename={wm_image.filename}, content_type={wm_image.content_type}")
-        try:
-            wm_image_data = await wm_image.read()
-            logger.info(f"[MAIN] 워터마크 이미지 read() 완료 - {len(wm_image_data)} bytes")
-
-            if len(wm_image_data) > 0:
-                wm_ext = os.path.splitext(wm_image.filename or "")[1].lower().lstrip('.') or "png"
-                wm_image_path = os.path.join(TEMP_DIR, f"wm_{merge_id}.{wm_ext}")
-                with open(wm_image_path, "wb") as f:
-                    f.write(wm_image_data)
-                logger.info(f"[MAIN] 워터마크 이미지 저장 완료 - {wm_image_path} ({os.path.getsize(wm_image_path)} bytes)")
-            else:
-                logger.error("[MAIN] ❌ 워터마크 이미지 데이터가 비어있음 (0 bytes)")
-
-        except Exception as e:
-            logger.error(f"[MAIN] ❌ 워터마크 이미지 저장 실패: {e}", exc_info=True)
-            wm_image_path = None
-    else:
-        logger.info(f"[MAIN] 워터마크 이미지 없음 - wm_type={wm_type}, wm_image={wm_image}")
-
     try:
         # -------------------------------
         # 📂 파일 저장 (메모리 안전)
@@ -152,8 +131,29 @@ async def convert_merge(
                 while chunk := await file.read(1024 * 1024):
                     f.write(chunk)
 
-            logger.info(f"[MAIN] 입력 파일 저장: {path} ({os.path.getsize(path)} bytes)")
             input_paths.append(path)
+
+        # -------------------------------
+        # 🖼 워터마크 이미지 저장 (스트림 한 번에 읽기)
+        # -------------------------------
+        if wm_type == "image" and wm_image is not None:
+            logger.info(f"[MAIN] 워터마크 이미지 수신 - filename={wm_image.filename}, content_type={wm_image.content_type}")
+            try:
+                wm_image_data = await wm_image.read()
+                logger.info(f"[MAIN] 워터마크 이미지 read() 완료 - {len(wm_image_data)} bytes")
+                if len(wm_image_data) > 0:
+                    wm_ext = os.path.splitext(wm_image.filename or "")[1].lower().lstrip('.') or "png"
+                    wm_image_path = os.path.join(TEMP_DIR, f"wm_{merge_id}.{wm_ext}")
+                    with open(wm_image_path, "wb") as f:
+                        f.write(wm_image_data)
+                    logger.info(f"[MAIN] 워터마크 이미지 저장 완료 - {wm_image_path} ({os.path.getsize(wm_image_path)} bytes)")
+                else:
+                    logger.error("[MAIN] ❌ 워터마크 이미지 데이터가 비어있음 (0 bytes)")
+            except Exception as e:
+                logger.error(f"[MAIN] ❌ 워터마크 이미지 저장 실패: {e}", exc_info=True)
+                wm_image_path = None
+        else:
+            logger.info(f"[MAIN] 워터마크 이미지 없음 - wm_type={wm_type}, wm_image={wm_image}")
 
         # -------------------------------
         # ⚙️ PDF 처리
@@ -177,6 +177,7 @@ async def convert_merge(
         # ☁️ S3 업로드
         # -------------------------------
         s3_key = f"output/{merge_id}.pdf"
+
         s3_client.upload_file(final_output_path, S3_BUCKET, s3_key)
 
         url = s3_client.generate_presigned_url(
@@ -199,7 +200,7 @@ async def convert_merge(
         return JSONResponse({"download_url": url})
 
     except Exception as e:
-        logger.error(f"[MAIN] ❌ 변환 실패: {e}", exc_info=True)
+        logger.error(f"Error: {e}", exc_info=True)
 
         for p in input_paths:
             cleanup(p)
