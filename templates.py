@@ -322,10 +322,10 @@ HTML_FOOTER = """
             const ctx = canvas.getContext('2d');
             const W = 600; const H = 848; // 가이드 캔버스 고정 해상도
             canvas.width = W; canvas.height = H;
-            
+
             // 용지 배경
             ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
-            
+
             // 문서 본문 더미 텍스트 레이아웃
             ctx.globalAlpha = 0.08; ctx.fillStyle = '#000';
             for(let i=0; i<15; i++) { ctx.fillRect(W*0.1, 60 + (i*50), W*0.8, 12); ctx.fillRect(W*0.1, 85 + (i*50), W*0.5, 12); }
@@ -343,17 +343,17 @@ HTML_FOOTER = """
                 const sizePercent = parseInt(document.getElementById('wmSize').value); // 사용자가 입력한 % 값
                 const opacity = parseInt(document.getElementById('wmOpacity').value) / 100;
                 const rotation = parseInt(document.getElementById('wmRotation').value) * Math.PI / 180;
-                
+
                 // 좌표 동기화 (전체 너비/높이 대비 고정 비율)
-                const posMap = { 
-                    'center': [W/2, H/2], 
-                    'top-left': [W*0.15, H*0.1], 
-                    'top-right': [W*0.85, H*0.1], 
-                    'bottom-left': [W*0.15, H*0.9], 
-                    'bottom-right': [W*0.85, H*0.9] 
+                const posMap = {
+                    'center': [W/2, H/2],
+                    'top-left': [W*0.15, H*0.1],
+                    'top-right': [W*0.85, H*0.1],
+                    'bottom-left': [W*0.15, H*0.9],
+                    'bottom-right': [W*0.85, H*0.9]
                 };
                 const [cx, cy] = posMap[pos] || posMap['center'];
-                
+
                 ctx.save();
                 ctx.translate(cx, cy);
                 ctx.rotate(rotation);
@@ -363,13 +363,16 @@ HTML_FOOTER = """
                     const text = document.getElementById('wmText').value || 'SIX SENSE';
                     // 텍스트 크기도 용지 너비에 비례하게 설정
                     const fontSize = W * (sizePercent / 100);
-                    ctx.font = `900 ${fontSize}px 'Noto Sans KR'`; 
-                    ctx.fillStyle = '#4F46E5';
+                    ctx.font = `900 ${fontSize}px 'Noto Sans KR'`;
+                    
+                    // 🔥 [색상 변경] 실제 기업용 문서 보안 워터마크에서 선호되는 차분한 회색 (#666666) 적용
+                    ctx.fillStyle = '#666666'; 
+                    
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, 0);
                 } else if (type === 'image' && wmLogoImg) {
                     // 🔥 [핵심] 이미지 크기를 용지 너비(W)의 N%로 강제 계산
                     const s = W * (sizePercent / 100);
-                    
+
                     // 원본 이미지 가로세로 비율 유지
                     const imgAspect = wmLogoImg.width / wmLogoImg.height;
                     let drawW, drawH;
@@ -382,7 +385,7 @@ HTML_FOOTER = """
                 }
                 ctx.restore();
             }
-            
+
             // 슬라이더 숫자 표시 업데이트 (UI)
             document.getElementById('wmSizeVal').textContent = document.getElementById('wmSize').value + '%';
             document.getElementById('wmOpacityVal').textContent = document.getElementById('wmOpacity').value + '%';
