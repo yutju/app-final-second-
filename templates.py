@@ -1,4 +1,3 @@
-
 from components import ABOUT_SECTION, API_SECTION
 
 # 상단 UI 및 내비게이션 바
@@ -557,6 +556,7 @@ HTML_FOOTER = """
             formData.append('wm_size', document.getElementById('wmSize').value);
             formData.append('wm_opacity', (document.getElementById('wmOpacity').value/100).toFixed(2));
             formData.append('wm_rotation', document.getElementById('wmRotation').value);
+            if(document.getElementById('wmImage').files[0]) formData.append('wm_image', document.getElementById('wmImage').files[0]);
             if(document.getElementById('useEncryption').checked) formData.append('pdf_pw', document.getElementById('pdfPassword').value);
             formData.append('use_pg_num', document.getElementById('usePageNumber').checked);
 
@@ -616,4 +616,3 @@ HTML_FOOTER = """
 
 # 최종 조립
 HTML_CONTENT = HTML_HEADER + ABOUT_SECTION + API_SECTION + HTML_FOOTER
-
