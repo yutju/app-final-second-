@@ -10,7 +10,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from PIL import Image as PILImage
 
-# 🚀 중요: 여기서 'from processor import PDFProcessor' 구문을 절대 넣지 마세요!
+# 🚀 중요: 순환 참조 방지를 위해 내부에서 PDFProcessor를 임포트하지 마세요.
 from converter import run_libreoffice, SUPPORTED_IMAGE_EXTS
 
 logger = logging.getLogger("SixSense-Processor")
@@ -44,12 +44,22 @@ class PDFProcessor:
             shutil.rmtree(profile_dir, ignore_errors=True)
 
     def _prepare_wm_image_bytes(self, wm_image_path: str) -> bytes:
-        """무손실 최적화를 통한 고화질 이미지 바이트 추출"""
+        """
+        🔥 [해결책 1] 이미지 해상도 표준화
+        원본 파일의 크기에 상관없이 512px 규격으로 리사이징하여 
+        기준점을 통일합니다. (파일마다 크기가 들쑥날쑥한 현상 방지)
+        """
         with PILImage.open(wm_image_path) as img:
             if img.mode not in ("RGBA", "RGB"):
                 img = img.convert("RGBA")
+            
+            base_size = 512
+            w, h = img.size
+            scale = base_size / max(w, h)
+            new_size = (int(w * scale), int(h * scale))
+            img = img.resize(new_size, PILImage.LANCZOS)
+            
             buf = BytesIO()
-            # 🚀 optimize=True로 품질 확보
             img.save(buf, format="PNG", optimize=True)
             return buf.getvalue()
 
@@ -63,12 +73,14 @@ class PDFProcessor:
         packet = BytesIO()
         can = canvas.Canvas(packet, pagesize=(page_width, page_height))
 
+        # 🚀 [해결책 2] 좌표 비율 동기화
+        # 웹 미리보기 가이드의 여백 비율(15%, 85%)을 PDF pt 좌표계에 그대로 이식합니다.
         pos_map = {
             "center": (page_width / 2, page_height / 2),
-            "top-left": (page_width * 0.2, page_height * 0.85),
-            "top-right": (page_width * 0.8, page_height * 0.85),
-            "bottom-left": (page_width * 0.2, page_height * 0.15),
-            "bottom-right": (page_width * 0.8, page_height * 0.15),
+            "top-left": (page_width * 0.15, page_height * 0.9),     
+            "top-right": (page_width * 0.85, page_height * 0.9),
+            "bottom-left": (page_width * 0.15, page_height * 0.1),
+            "bottom-right": (page_width * 0.85, page_height * 0.1),
         }
         x, y = pos_map.get(wm_position, (page_width / 2, page_height / 2))
         opacity = max(0.1, min(wm_opacity, 1.0))
@@ -76,14 +88,20 @@ class PDFProcessor:
         if wm_type == "image" and wm_image_bytes:
             try:
                 logo = ImageReader(BytesIO(wm_image_bytes))
-                s = wm_size * mm
+                
+                # 🔥 [해결책 3] 상대적 비율(%) 기반 크기 계산
+                # wm_size(사용자가 입력한 %)를 실제 페이지 너비(page_width)의 비율로 변환합니다.
+                # 웹의 가이드 박스 너비 대비 로고 크기 비율이 PDF에서도 1:1로 유지됩니다.
+                s = page_width * (wm_size / 100) 
+                
                 is_rgba = self._is_rgba_png(wm_image_bytes)
                 mask = 'auto' if is_rgba else None
                 can.saveState()
                 can.translate(x, y)
                 can.rotate(wm_rotation)
                 can.setFillAlpha(opacity)
-                # 🚀 anchor='c' 옵션으로 뭉개짐 방지
+                
+                # anchor='c'를 통해 이미지 중심을 정확히 고정
                 can.drawImage(logo, -s/2, -s/2, width=s, height=s, mask=mask, preserveAspectRatio=True, anchor='c')
                 can.restoreState()
             except Exception as e:
@@ -91,7 +109,10 @@ class PDFProcessor:
 
         elif wm_type == "text" and wm_text:
             can.saveState()
-            can.setFont("Helvetica-Bold", wm_size)
+            # 텍스트 역시 페이지 너비 대비 비율로 폰트 크기 결정
+            font_size = page_width * (wm_size / 100)
+            can.setFont("Helvetica-Bold", font_size) 
+            can.setFillColorRGB(0.31, 0.27, 0.9) # 웹 Indigo-600 색상
             can.setFillAlpha(opacity)
             can.translate(x, y); can.rotate(wm_rotation)
             can.drawCentredString(0, 0, wm_text)
@@ -100,7 +121,7 @@ class PDFProcessor:
         if use_page_number:
             can.setFont("Helvetica", 10)
             can.setFillAlpha(0.5)
-            can.drawCentredString(page_width / 2, 10 * mm, f"- Page {page_num} / {total_pages} -")
+            can.drawCentredString(page_width / 2, 30, f"- Page {page_num} / {total_pages} -")
 
         can.showPage()
         can.save()
@@ -112,6 +133,7 @@ class PDFProcessor:
         fragments = [f for f in fragments if f]
         if not fragments: raise ValueError("변환된 PDF가 없습니다.")
 
+        # Ghostscript를 통한 표준화 병합 (압축 최적화)
         merged_raw = os.path.join(self.temp_dir, f"raw_{uuid.uuid4()}.pdf")
         subprocess.run(["gs", "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4", "-dNOPAUSE", "-dQUIET", "-dBATCH", f"-sOutputFile={merged_raw}"] + fragments, check=True)
 
@@ -119,11 +141,18 @@ class PDFProcessor:
         if wm_type == "image" and wm_image_path and os.path.exists(wm_image_path):
             wm_image_bytes = self._prepare_wm_image_bytes(wm_image_path)
 
+        # pikepdf를 통한 워터마크 레이어 오버레이 합성
         with pikepdf.open(merged_raw) as pdf:
+            total_count = len(pdf.pages)
             for i, page in enumerate(pdf.pages):
                 if "/Group" in page: del page["/Group"]
-                pw = float(page.MediaBox[2]); ph = float(page.MediaBox[3])
-                wm_packet = self._draw_watermark_layer(pw, ph, wm_type, wm_text, wm_image_bytes, wm_position, wm_size, wm_opacity, wm_rotation, i+1, len(pdf.pages), use_page_number)
+                
+                pw = float(page.MediaBox[2])
+                ph = float(page.MediaBox[3])
+                
+                # wm_size는 이제 '숫자'가 아닌 '비중(%)'으로 전달됩니다.
+                wm_packet = self._draw_watermark_layer(pw, ph, wm_type, wm_text, wm_image_bytes, wm_position, float(wm_size), wm_opacity, wm_rotation, i+1, total_count, use_page_number)
+                
                 with pikepdf.open(wm_packet) as wm_pdf:
                     page.add_overlay(wm_pdf.pages[0])
                 wm_packet.close()
@@ -133,5 +162,6 @@ class PDFProcessor:
             else:
                 pdf.save(output_path, static_id=True)
 
+        # 임시 파일 정리
         for f in fragments: os.remove(f)
         if os.path.exists(merged_raw): os.remove(merged_raw)

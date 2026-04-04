@@ -1,4 +1,3 @@
-
 from components import ABOUT_SECTION, API_SECTION
 
 # 상단 UI 및 내비게이션 바
@@ -128,9 +127,9 @@ HTML_HEADER = """
                             </div>
                             <div>
                                 <div class="flex justify-between items-center text-xs font-black text-gray-500">
-                                    <span>크기</span><span id="wmSizeVal" class="text-indigo-600">60</span>
+                                    <span>상대적 크기</span><span id="wmSizeVal" class="text-indigo-600">30%</span>
                                 </div>
-                                <input type="range" id="wmSize" min="10" max="250" value="60" class="w-full mt-1 accent-indigo-600">
+                                <input type="range" id="wmSize" min="5" max="100" value="30" class="w-full mt-1 accent-indigo-600">
                             </div>
                             <div>
                                 <div class="flex justify-between items-center text-xs font-black text-gray-500">
@@ -305,6 +304,7 @@ HTML_FOOTER = """
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
+        // 🔥 [상대적 비율 기반 동기화 로직]
         function drawWmPreview() {
             const type = wmType.value;
             const usePgNum = document.getElementById('usePageNumber').checked;
@@ -320,36 +320,73 @@ HTML_FOOTER = """
 
             box.classList.remove('hidden');
             const ctx = canvas.getContext('2d');
-            const W = 600; const H = 848;
+            const W = 600; const H = 848; // 가이드 캔버스 고정 해상도
             canvas.width = W; canvas.height = H;
+            
+            // 용지 배경
             ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+            
+            // 문서 본문 더미 텍스트 레이아웃
             ctx.globalAlpha = 0.08; ctx.fillStyle = '#000';
             for(let i=0; i<15; i++) { ctx.fillRect(W*0.1, 60 + (i*50), W*0.8, 12); ctx.fillRect(W*0.1, 85 + (i*50), W*0.5, 12); }
             ctx.globalAlpha = 1.0;
 
+            // 페이지 번호 미리보기
             if (usePgNum) {
                 ctx.save(); ctx.globalAlpha = 0.5; ctx.font = "bold 20px 'Noto Sans KR'";
                 ctx.fillStyle = "#6b7280"; ctx.textAlign = "center"; ctx.fillText("- Page 1 -", W/2, H - 40); ctx.restore();
             }
 
+            // 워터마크 미리보기 (상대적 비율 방식 적용)
             if (type !== 'none') {
                 const pos = document.getElementById('wmPosition').value;
-                const size = parseInt(document.getElementById('wmSize').value);
+                const sizePercent = parseInt(document.getElementById('wmSize').value); // 사용자가 입력한 % 값
                 const opacity = parseInt(document.getElementById('wmOpacity').value) / 100;
                 const rotation = parseInt(document.getElementById('wmRotation').value) * Math.PI / 180;
-                const posMap = { 'center': [W/2, H/2], 'top-left': [W*0.15, H*0.1], 'top-right': [W*0.85, H*0.1], 'bottom-left': [W*0.15, H*0.9], 'bottom-right': [W*0.85, H*0.9] };
+                
+                // 좌표 동기화 (전체 너비/높이 대비 고정 비율)
+                const posMap = { 
+                    'center': [W/2, H/2], 
+                    'top-left': [W*0.15, H*0.1], 
+                    'top-right': [W*0.85, H*0.1], 
+                    'bottom-left': [W*0.15, H*0.9], 
+                    'bottom-right': [W*0.85, H*0.9] 
+                };
                 const [cx, cy] = posMap[pos] || posMap['center'];
-                ctx.save(); ctx.translate(cx, cy); ctx.rotate(rotation); ctx.globalAlpha = opacity;
+                
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(rotation);
+                ctx.globalAlpha = opacity;
+
                 if (type === 'text') {
                     const text = document.getElementById('wmText').value || 'SIX SENSE';
-                    ctx.font = `900 ${size * 0.8}px 'Noto Sans KR'`; ctx.fillStyle = '#4F46E5';
+                    // 텍스트 크기도 용지 너비에 비례하게 설정
+                    const fontSize = W * (sizePercent / 100);
+                    ctx.font = `900 ${fontSize}px 'Noto Sans KR'`; 
+                    ctx.fillStyle = '#4F46E5';
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, 0, 0);
                 } else if (type === 'image' && wmLogoImg) {
-                    const scale = size / 200;
-                    ctx.drawImage(wmLogoImg, -(wmLogoImg.width*scale)/2, -(wmLogoImg.height*scale)/2, wmLogoImg.width*scale, wmLogoImg.height*scale);
+                    // 🔥 [핵심] 이미지 크기를 용지 너비(W)의 N%로 강제 계산
+                    const s = W * (sizePercent / 100);
+                    
+                    // 원본 이미지 가로세로 비율 유지
+                    const imgAspect = wmLogoImg.width / wmLogoImg.height;
+                    let drawW, drawH;
+                    if (imgAspect > 1) { // 가로가 긴 이미지
+                        drawW = s; drawH = s / imgAspect;
+                    } else { // 세로가 긴 이미지
+                        drawH = s; drawW = s * imgAspect;
+                    }
+                    ctx.drawImage(wmLogoImg, -drawW/2, -drawH/2, drawW, drawH);
                 }
                 ctx.restore();
             }
+            
+            // 슬라이더 숫자 표시 업데이트 (UI)
+            document.getElementById('wmSizeVal').textContent = document.getElementById('wmSize').value + '%';
+            document.getElementById('wmOpacityVal').textContent = document.getElementById('wmOpacity').value + '%';
+            document.getElementById('wmRotationVal').textContent = document.getElementById('wmRotation').value + '°';
         }
 
         window.onload = () => {
@@ -365,6 +402,7 @@ HTML_FOOTER = """
                     reader.readAsDataURL(file);
                 }
             });
+            drawWmPreview();
         };
 
         wmType.onchange = () => {
@@ -438,7 +476,6 @@ HTML_FOOTER = """
             progressInterval = setInterval(() => { if (current < 90) { current += Math.floor(Math.random() * 5) + 1; updateProgress(current, "PDF 변환 및 압축 중", "SixSense 엔진 가동 중..."); } }, 500);
         }
 
-        // 단일 파일 게이지 업데이트
         function updateSingleGauge(size) {
             const wrapper = document.getElementById('singleGaugeWrapper');
             const bar = document.getElementById('singleSizeBar');
