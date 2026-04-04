@@ -1,8 +1,6 @@
 import os
-import subprocess
 import time
 import shutil
-import random
 import uuid
 import logging
 from io import BytesIO
@@ -14,6 +12,8 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import pikepdf
+
+from converter import run_libreoffice, SUPPORTED_IMAGE_EXTS, SUPPORTED_DOC_EXTS
 
 logger = logging.getLogger("SixSense-Converter")
 
@@ -34,44 +34,71 @@ class PDFProcessor:
     def __init__(self, temp_dir):
         self.temp_dir = temp_dir
 
-    # 🕵️ 개별 파일 변환 로직
     def _convert_to_pdf_fragment(self, input_path):
         ext = input_path.rsplit('.', 1)[-1].lower()
         tmp_pdf = os.path.join(self.temp_dir, f"frag_{uuid.uuid4()}.pdf")
 
-        # 1. 이미지 처리
-        if ext in ["png", "jpg", "jpeg", "bmp"]:
+        # 1. 이미지 처리 (Pillow)
+        if ext in SUPPORTED_IMAGE_EXTS:
             with Image.open(input_path) as img:
-                if img.mode != "RGB": img = img.convert("RGB")
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
                 img.save(tmp_pdf, "PDF")
             return tmp_pdf
 
-        # 2. 문서 처리 (LibreOffice)
+        # 2. 문서 처리 (LibreOffice) — converter.run_libreoffice 공용 함수 사용
+        if ext not in SUPPORTED_DOC_EXTS:
+            raise ValueError(f"지원하지 않는 확장자입니다: .{ext}")
+
         ts = str(int(time.time() * 1000))
         profile_dir = os.path.join(self.temp_dir, f"env_{ts}_{uuid.uuid4().hex[:6]}")
         os.makedirs(profile_dir, exist_ok=True)
 
+        # TXT 파일 인코딩 보정
+        if ext == "txt":
+            with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            with open(input_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
         env = os.environ.copy()
         env.update({
-            "HOME": profile_dir, "LANG": "ko_KR.UTF-8", "LC_ALL": "ko_KR.UTF-8",
-            "SAL_USE_VCLPLUGIN": "base", "SAL_VCL_QT5_USE_CAIRO": "1"
+            "HOME": profile_dir,
+            "LANG": "ko_KR.UTF-8",
+            "LC_ALL": "ko_KR.UTF-8",
+            "LANGUAGE": "ko_KR:ko",
+            "SAL_USE_VCLPLUGIN": "gen",
+            "SAL_VCL_QT5_USE_CAIRO": "1",
+            "FONTCONFIG_PATH": "/etc/fonts",
         })
 
-        lo_cmd = ["xvfb-run", "-a", "libreoffice", "--headless", "--invisible",
-                  "--convert-to", "pdf", "--outdir", profile_dir, input_path]
-
         try:
-            subprocess.run(lo_cmd, env=env, timeout=120, check=True)
-            gen_pdf = os.path.join(profile_dir, f"{os.path.basename(input_path).rsplit('.', 1)[0]}.pdf")
+            run_libreoffice(input_path, profile_dir, env)
+            gen_pdf = os.path.join(
+                profile_dir,
+                f"{os.path.basename(input_path).rsplit('.', 1)[0]}.pdf"
+            )
             if os.path.exists(gen_pdf):
                 shutil.move(gen_pdf, tmp_pdf)
                 return tmp_pdf
         finally:
             shutil.rmtree(profile_dir, ignore_errors=True)
+
         return None
 
     # [메인] 다중 파일 병합 실행 함수
-    def process_merge(self, input_paths, output_path, wm_type="none", wm_text="SIX SENSE", wm_image_path=None):
+    def process_merge(
+        self,
+        input_paths,
+        output_path,
+        wm_type="none",
+        wm_text="SIX SENSE",
+        wm_image_path=None,
+        wm_position="center",   # center | top-left | top-right | bottom-left | bottom-right
+        wm_size=60,             # 텍스트: 폰트 크기(pt) / 이미지: 단축변 길이(mm)
+        wm_opacity=0.3,         # 0.0 ~ 1.0
+        wm_rotation=45,         # 회전각 (도)
+    ):
         fragments = []
         try:
             # 1. 모든 파일을 PDF 조각으로 변환
@@ -100,7 +127,11 @@ class PDFProcessor:
             writer = PdfWriter()
             active_font = FONT_NAME if HAS_NANUM else "Helvetica"
 
-            self.add_custom_watermark(reader, writer, active_font, wm_type, wm_text, wm_image_path)
+            self.add_custom_watermark(
+                reader, writer, active_font,
+                wm_type, wm_text, wm_image_path,
+                wm_position, wm_size, wm_opacity, wm_rotation,
+            )
 
             with open(output_path, "wb") as f:
                 writer.write(f)
@@ -111,29 +142,53 @@ class PDFProcessor:
             for frag in fragments:
                 if os.path.exists(frag): os.remove(frag)
 
-    # 워터마크 농도 및 가독성 업그레이드 로직
-    def add_custom_watermark(self, reader, writer, active_font, wm_type, wm_text, wm_image_path):
+    # 워터마크 위치/크기/투명도/회전 커스텀 지원
+    def add_custom_watermark(
+        self, reader, writer, active_font,
+        wm_type, wm_text, wm_image_path,
+        wm_position="center",
+        wm_size=60,
+        wm_opacity=0.3,
+        wm_rotation=45,
+    ):
         width, height = A4
+
+        # position 문자열 → (x, y) 좌표 변환
+        POSITION_MAP = {
+            "center":       (width / 2,        height / 2),
+            "top-left":     (width * 0.2,      height * 0.8),
+            "top-right":    (width * 0.8,      height * 0.8),
+            "bottom-left":  (width * 0.2,      height * 0.2),
+            "bottom-right": (width * 0.8,      height * 0.2),
+        }
+        x, y = POSITION_MAP.get(wm_position, POSITION_MAP["center"])
+        opacity = max(0.0, min(1.0, wm_opacity))  # 0~1 클램프
+
         for i, page in enumerate(reader.pages):
             packet = BytesIO()
             can = canvas.Canvas(packet, pagesize=A4)
 
             if wm_type == "text" and wm_text:
                 can.saveState()
-                can.setFont(active_font, 60)
-                can.setFillColorRGB(0.7, 0.7, 0.7, alpha=0.3)
-                can.translate(width/2, height/2)
-                can.rotate(45)
+                can.setFont(active_font, wm_size)
+                can.setFillColorRGB(0.7, 0.7, 0.7, alpha=opacity)
+                can.translate(x, y)
+                can.rotate(wm_rotation)
                 can.drawCentredString(0, 0, wm_text)
                 can.restoreState()
 
             elif wm_type == "image" and wm_image_path:
+                img_side = wm_size * mm
                 can.saveState()
-                img_w, img_h = 130*mm, 130*mm
-                can.translate(width/2, height/2)
-                can.rotate(45)
-                can.setFillAlpha(0.2)
-                can.drawImage(wm_image_path, -img_w/2, -img_h/2, width=img_w, height=img_h, mask='auto', preserveAspectRatio=True)
+                can.translate(x, y)
+                can.rotate(wm_rotation)
+                can.setFillAlpha(opacity)
+                can.drawImage(
+                    wm_image_path,
+                    -img_side / 2, -img_side / 2,
+                    width=img_side, height=img_side,
+                    mask='auto', preserveAspectRatio=True,
+                )
                 can.restoreState()
 
             # 하단 페이지 정보

@@ -2,22 +2,24 @@ import os
 import uuid
 import shutil
 import logging
-import boto3
 import time
-import subprocess
+from enum import Enum
 from typing import Optional, List
+
+import boto3
 from botocore.config import Config
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-# 모니터링 라이브러리 (Prometheus)
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Counter, Histogram
 
-# 사용자 정의 모듈 (PDF 처리 및 템플릿)
 from processor import PDFProcessor
+from converter import SUPPORTED_EXTS
 from templates import HTML_CONTENT
 
 # [운영 포인트] 로깅 설정
@@ -27,10 +29,15 @@ logger = logging.getLogger("SixSense-Converter")
 # 🕵️ [인프라 포인트] 환경변수를 통한 S3 버킷 설정
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "sixsense-pdf-storage")
 
-# IAM Role 기반 S3 클라이언트 설정 (인스턴스 프로파일 활용)
+# IAM Role 기반 S3 클라이언트 (인스턴스 프로파일 + 자동 재시도)
 s3_client = boto3.client(
     's3',
-    region_name="ap-northeast-2"
+    region_name="ap-northeast-2",
+    config=Config(
+        retries={"max_attempts": 3, "mode": "standard"},
+        connect_timeout=5,
+        read_timeout=60,
+    ),
 )
 
 # --- FastAPI 앱 초기화 ---
@@ -44,11 +51,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # [모니터링 포인트] Prometheus 계측기 활성화
 Instrumentator().instrument(app).expose(app)
 
-# [보안 포인트] Rate Limiter 설정
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
+# Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -67,6 +70,32 @@ S3_UPLOAD_LATENCY = Histogram(
 # 임시 저장소 설정
 TEMP_DIR = os.path.join(os.path.dirname(__file__), "temp_storage")
 os.makedirs(TEMP_DIR, exist_ok=True)
+
+# 업로드 제한
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+# 워터마크 위치 허용값 Enum
+class WatermarkPosition(str, Enum):
+    center       = "center"
+    top_left     = "top-left"
+    top_right    = "top-right"
+    bottom_left  = "bottom-left"
+    bottom_right = "bottom-right"
+
+def validate_upload(filename: str, size: int) -> str:
+    """확장자 및 파일 크기 검증. 통과 시 ext 반환, 실패 시 HTTPException."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in SUPPORTED_EXTS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"지원하지 않는 파일 형식입니다: .{ext}  (지원: {', '.join(sorted(SUPPORTED_EXTS))})"
+        )
+    if size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"파일 크기 초과: {filename} ({size // (1024*1024)}MB). 최대 50MB까지 허용됩니다."
+        )
+    return ext
 
 # --- 유틸리티 함수 ---
 def compress_pdf_high_quality(input_path, output_path):
@@ -126,9 +155,15 @@ async def convert_single(
     file: UploadFile = File(...),
     wm_type: str = Form("none"),
     wm_text: Optional[str] = Form(None),
-    wm_image: Optional[UploadFile] = File(None)
+    wm_image: Optional[UploadFile] = File(None),
+    wm_position: WatermarkPosition = Form(WatermarkPosition.center),
+    wm_size: float = Form(60.0),             # 텍스트: pt / 이미지: mm
+    wm_opacity: float = Form(0.3),           # 0.0 ~ 1.0
+    wm_rotation: float = Form(45.0),         # 회전각 (도)
 ):
-    ext = file.filename.split(".")[-1].lower()
+    content = await file.read()
+    ext = validate_upload(file.filename, len(content))
+
     file_id = str(uuid.uuid4())
     input_path = os.path.join(TEMP_DIR, f"{file_id}.{ext}")
     temp_output_path = os.path.join(TEMP_DIR, f"{file_id}_raw.pdf")
@@ -137,7 +172,7 @@ async def convert_single(
 
     try:
         with open(input_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
 
         if wm_type == "image" and wm_image and wm_image.filename:
             wm_ext = wm_image.filename.split(".")[-1].lower()
@@ -147,7 +182,14 @@ async def convert_single(
 
         proc = PDFProcessor(TEMP_DIR)
         actual_wm_type = wm_type if wm_type != "none" else None
-        proc.process_merge([input_path], temp_output_path, actual_wm_type, wm_text, wm_image_path)
+        proc.process_merge(
+            [input_path], temp_output_path,
+            actual_wm_type, wm_text, wm_image_path,
+            wm_position=wm_position,
+            wm_size=wm_size,
+            wm_opacity=wm_opacity,
+            wm_rotation=wm_rotation,
+        )
 
         if not compress_pdf_high_quality(temp_output_path, final_output_path):
             shutil.copy(temp_output_path, final_output_path)
@@ -172,10 +214,10 @@ async def convert_single(
         return JSONResponse({"download_url": url})
     except Exception as e:
         CONVERSION_STATS.labels(mode="single", status="fail").inc()
-        logger.error(f"Error during single conversion: {e}")
+        logger.error(f"[single] 변환 실패: {e}", exc_info=True)
         cleanup(input_path); cleanup(temp_output_path); cleanup(final_output_path)
         if wm_image_path: cleanup(wm_image_path)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="파일 변환 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
 
 @app.post("/convert-merge/")
 @limiter.limit("5/minute")
@@ -185,7 +227,11 @@ async def convert_merge(
     files: List[UploadFile] = File(...),
     wm_type: str = Form("none"),
     wm_text: Optional[str] = Form(None),
-    wm_image: Optional[UploadFile] = File(None)
+    wm_image: Optional[UploadFile] = File(None),
+    wm_position: WatermarkPosition = Form(WatermarkPosition.center),
+    wm_size: float = Form(60.0),             # 텍스트: pt / 이미지: mm
+    wm_opacity: float = Form(0.3),           # 0.0 ~ 1.0
+    wm_rotation: float = Form(45.0),         # 회전각 (도)
 ):
     if len(files) > 10:
         raise HTTPException(status_code=400, detail="최대 10개의 파일까지만 병합 가능합니다.")
@@ -198,10 +244,11 @@ async def convert_merge(
 
     try:
         for file in files:
-            ext = file.filename.split(".")[-1].lower()
+            content = await file.read()
+            ext = validate_upload(file.filename, len(content))
             path = os.path.join(TEMP_DIR, f"{uuid.uuid4()}.{ext}")
             with open(path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+                buffer.write(content)
             input_paths.append(path)
 
         if wm_type == "image" and wm_image and wm_image.filename:
@@ -212,7 +259,14 @@ async def convert_merge(
 
         proc = PDFProcessor(TEMP_DIR)
         actual_wm_type = wm_type if wm_type != "none" else None
-        proc.process_merge(input_paths, temp_output_path, actual_wm_type, wm_text, wm_image_path)
+        proc.process_merge(
+            input_paths, temp_output_path,
+            actual_wm_type, wm_text, wm_image_path,
+            wm_position=wm_position,
+            wm_size=wm_size,
+            wm_opacity=wm_opacity,
+            wm_rotation=wm_rotation,
+        )
 
         if not compress_pdf_high_quality(temp_output_path, final_output_path):
             shutil.copy(temp_output_path, final_output_path)
@@ -237,8 +291,8 @@ async def convert_merge(
         return JSONResponse({"download_url": url})
     except Exception as e:
         CONVERSION_STATS.labels(mode="merge", status="fail").inc()
-        logger.error(f"Merge Error: {e}")
+        logger.error(f"[merge] 변환 실패: {e}", exc_info=True)
         for p in input_paths: cleanup(p)
         cleanup(temp_output_path); cleanup(final_output_path)
         if wm_image_path: cleanup(wm_image_path)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="파일 병합 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")

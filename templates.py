@@ -1,4 +1,3 @@
-
 # templates.py
 from components import ABOUT_SECTION, API_SECTION
 
@@ -88,6 +87,51 @@ HTML_HEADER = """
                         <div id="wmImageGroup" class="hidden">
                             <input type="file" id="wmImage" accept="image/*" class="w-full text-xs font-bold text-gray-400">
                         </div>
+
+                        <!-- 워터마크 상세 옵션 (워터마크 선택 시 표시) -->
+                        <div id="wmAdvanced" class="hidden space-y-3 pt-2 border-t border-gray-100">
+                            <!-- 위치 -->
+                            <div>
+                                <label class="text-xs font-black text-gray-500 uppercase tracking-widest">위치</label>
+                                <select id="wmPosition" class="w-full mt-1 p-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm focus:border-indigo-500 outline-none">
+                                    <option value="center">⊙ 중앙</option>
+                                    <option value="top-left">↖ 좌상단</option>
+                                    <option value="top-right">↗ 우상단</option>
+                                    <option value="bottom-left">↙ 좌하단</option>
+                                    <option value="bottom-right">↘ 우하단</option>
+                                </select>
+                            </div>
+                            <!-- 크기 -->
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-black text-gray-500 uppercase tracking-widest">크기</label>
+                                    <span id="wmSizeVal" class="text-xs font-black text-indigo-600">60</span>
+                                </div>
+                                <input type="range" id="wmSize" min="20" max="120" value="60"
+                                    class="w-full mt-1 accent-indigo-600"
+                                    oninput="document.getElementById('wmSizeVal').textContent = this.value">
+                            </div>
+                            <!-- 투명도 -->
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-black text-gray-500 uppercase tracking-widest">투명도</label>
+                                    <span id="wmOpacityVal" class="text-xs font-black text-indigo-600">30%</span>
+                                </div>
+                                <input type="range" id="wmOpacity" min="5" max="100" value="30"
+                                    class="w-full mt-1 accent-indigo-600"
+                                    oninput="document.getElementById('wmOpacityVal').textContent = this.value + '%'">
+                            </div>
+                            <!-- 회전 -->
+                            <div>
+                                <div class="flex justify-between items-center">
+                                    <label class="text-xs font-black text-gray-500 uppercase tracking-widest">회전</label>
+                                    <span id="wmRotationVal" class="text-xs font-black text-indigo-600">45°</span>
+                                </div>
+                                <input type="range" id="wmRotation" min="0" max="360" value="45"
+                                    class="w-full mt-1 accent-indigo-600"
+                                    oninput="document.getElementById('wmRotationVal').textContent = this.value + '°'">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="space-y-4">
@@ -104,8 +148,17 @@ HTML_HEADER = """
                             <input type="file" id="inputSingle" class="hidden">
                         </div>
                         <div id="infoSingle" class="hidden bg-white p-6 rounded-2xl border-2 border-indigo-100 flex justify-between items-center shadow-lg">
-                            <span id="nameSingle" class="text-indigo-900 font-black text-lg truncate"></span>
-                            <button onclick="resetSingle()" class="bg-red-50 text-red-500 p-2 rounded-full">✕</button>
+                            <div class="truncate">
+                                <span id="nameSingle" class="text-indigo-900 font-black text-lg truncate block"></span>
+                                <span id="sizeSingle" class="text-gray-400 text-xs font-bold"></span>
+                            </div>
+                            <button onclick="resetSingle()" class="bg-red-50 text-red-500 p-2 rounded-full flex-shrink-0 ml-3">✕</button>
+                        </div>
+
+                        <!-- 워터마크 미리보기 -->
+                        <div id="wmPreviewBox" class="hidden">
+                            <p class="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">워터마크 미리보기</p>
+                            <canvas id="wmCanvas" class="w-full rounded-xl border border-gray-200 bg-gray-50" style="max-height:180px;"></canvas>
                         </div>
                         <button onclick="handleSingleUpload()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-2xl text-2xl shadow-xl hover:bg-indigo-700 transition transform hover:-translate-y-1">📄 PDF 단일 변환 시작 ✨</button>
                     </div>
@@ -118,6 +171,7 @@ HTML_HEADER = """
                             <input type="file" id="inputMerge" class="hidden" multiple>
                         </div>
                         <div id="listMerge" class="hidden space-y-3 p-4 border-2 border-indigo-50 rounded-2xl bg-gray-50/50 max-h-96 overflow-y-auto"></div>
+                        <div id="mergeSizeInfo" class="hidden text-xs text-right text-gray-400 font-bold pr-1"></div>
                         <p class="text-xs text-center text-indigo-400 font-bold py-2 italic">💡 마우스로 끌어서 파일의 합쳐질 순서를 바꿀 수 있습니다.</p>
                         <button onclick="handleMergeUpload()" class="w-full bg-indigo-600 text-white font-black py-6 rounded-2xl text-2xl shadow-xl hover:bg-indigo-700 transition transform hover:-translate-y-1">📑 통합 PDF 병합 시작 ⚡</button>
                     </div>
@@ -290,8 +344,11 @@ HTML_FOOTER = """
         }
 
         wmType.onchange = () => {
+            const hasWm = wmType.value !== 'none';
             wmTextGroup.classList.toggle('hidden', wmType.value !== 'text');
             wmImageGroup.classList.toggle('hidden', wmType.value !== 'image');
+            document.getElementById('wmAdvanced').classList.toggle('hidden', !hasWm);
+            drawWmPreview();
         };
 
         btnSingle.onclick = () => {
@@ -308,6 +365,11 @@ HTML_FOOTER = """
             guideDesc.textContent = "여러 문서를 순서대로 합쳐 하나의 PDF로 생성합니다. (최대 10개)";
         };
 
+        function formatSize(bytes) {
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
         const inputSingle = document.getElementById('inputSingle');
         const infoSingle = document.getElementById('infoSingle');
         const nameSingle = document.getElementById('nameSingle');
@@ -317,11 +379,100 @@ HTML_FOOTER = """
         inputSingle.onchange = (e) => {
             const file = e.target.files[0];
             if(file && validateFile(file)) {
-                singleFile = file; nameSingle.textContent = file.name; infoSingle.classList.remove('hidden');
+                singleFile = file;
+                nameSingle.textContent = file.name;
+                document.getElementById('sizeSingle').textContent = formatSize(file.size);
+                infoSingle.classList.remove('hidden');
+                drawWmPreview();
             }
         };
 
-        function resetSingle() { singleFile = null; inputSingle.value = ''; infoSingle.classList.add('hidden'); }
+        function resetSingle() {
+            singleFile = null;
+            inputSingle.value = '';
+            infoSingle.classList.add('hidden');
+            document.getElementById('wmPreviewBox').classList.add('hidden');
+        }
+
+        // 워터마크 Canvas 미리보기
+        function drawWmPreview() {
+            const type = wmType.value;
+            if (type === 'none' || !singleFile) {
+                document.getElementById('wmPreviewBox').classList.add('hidden');
+                return;
+            }
+            document.getElementById('wmPreviewBox').classList.remove('hidden');
+
+            const canvas = document.getElementById('wmCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = 420, H = 180;
+            canvas.width = W; canvas.height = H;
+
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = '#f9fafb';
+            ctx.fillRect(0, 0, W, H);
+
+            // 페이지 선 시뮬레이션
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.strokeRect(2, 2, W - 4, H - 4);
+
+            const posMap = {
+                'center':       [W / 2,      H / 2],
+                'top-left':     [W * 0.2,    H * 0.2],
+                'top-right':    [W * 0.8,    H * 0.2],
+                'bottom-left':  [W * 0.2,    H * 0.8],
+                'bottom-right': [W * 0.8,    H * 0.8],
+            };
+            const pos = document.getElementById('wmPosition').value;
+            const [cx, cy] = posMap[pos] || posMap['center'];
+            const size = parseInt(document.getElementById('wmSize').value);
+            const opacity = parseInt(document.getElementById('wmOpacity').value) / 100;
+            const rotation = parseInt(document.getElementById('wmRotation').value) * Math.PI / 180;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation);
+            ctx.globalAlpha = opacity;
+
+            if (type === 'text') {
+                const text = document.getElementById('wmText').value || 'WATERMARK';
+                const fontSize = Math.max(10, Math.min(size * 0.5, 48));
+                ctx.font = `900 ${fontSize}px 'Noto Sans KR', sans-serif`;
+                ctx.fillStyle = '#9ca3af';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 0, 0);
+            } else if (type === 'image') {
+                const wmFile = document.getElementById('wmImage').files[0];
+                if (wmFile) {
+                    const url = URL.createObjectURL(wmFile);
+                    const img = new Image();
+                    img.onload = () => {
+                        const s = Math.min(size * 0.8, 80);
+                        ctx.drawImage(img, -s/2, -s/2, s, s);
+                        ctx.restore();
+                        URL.revokeObjectURL(url);
+                    };
+                    img.src = url;
+                    return;
+                }
+            }
+            ctx.restore();
+
+            // 하단 페이지 정보 시뮬레이션
+            ctx.globalAlpha = 0.4;
+            ctx.font = '9px sans-serif';
+            ctx.fillStyle = '#6b7280';
+            ctx.textAlign = 'right';
+            ctx.fillText('SixSense Secured | Page 1 / 1', W - 8, H - 6);
+            ctx.globalAlpha = 1;
+        }
+
+        // 슬라이더/옵션 변경 시 미리보기 갱신
+        ['wmPosition', 'wmSize', 'wmOpacity', 'wmRotation', 'wmText'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', drawWmPreview);
+        });
+        document.getElementById('wmImage').addEventListener('change', drawWmPreview);
 
         async function handleSingleUpload() {
             if(!singleFile) return alert('파일을 선택해주세요.');
@@ -329,6 +480,10 @@ HTML_FOOTER = """
             formData.append('file', singleFile);
             formData.append('wm_type', wmType.value);
             formData.append('wm_text', document.getElementById('wmText').value);
+            formData.append('wm_position', document.getElementById('wmPosition').value);
+            formData.append('wm_size', document.getElementById('wmSize').value);
+            formData.append('wm_opacity', (parseFloat(document.getElementById('wmOpacity').value) / 100).toFixed(2));
+            formData.append('wm_rotation', document.getElementById('wmRotation').value);
             const wmImgInput = document.getElementById('wmImage');
             if(wmType.value === 'image' && wmImgInput.files[0]) formData.append('wm_image', wmImgInput.files[0]);
             document.getElementById('loadingScreen').classList.remove('hidden');
@@ -340,7 +495,8 @@ HTML_FOOTER = """
                 setTimeout(() => showResult(res.data.download_url), 600);
             } catch (err) {
                 clearInterval(progressInterval);
-                alert('변환 실패!');
+                const msg = err.response?.data?.detail || '변환 중 오류가 발생했습니다. 다시 시도해주세요.';
+                showSystemToast(`❌ ${msg}`);
             } finally {
                 setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000);
             }
@@ -377,8 +533,13 @@ HTML_FOOTER = """
 
         function updateMergeList(reRender = true) {
             document.getElementById('mergeStatus').textContent = `현재 ${mergeFiles.length} / 10개 선택됨`;
+            const totalBytes = mergeFiles.reduce((s, f) => s + f.size, 0);
+            const sizeInfo = document.getElementById('mergeSizeInfo');
+
             if(mergeFiles.length > 0) {
                 listMerge.classList.remove('hidden');
+                sizeInfo.textContent = `총 ${formatSize(totalBytes)} / 50MB`;
+                sizeInfo.classList.remove('hidden');
                 if(reRender) {
                     listMerge.innerHTML = mergeFiles.map((f, i) => {
                         const ext = f.name.split('.').pop().toLowerCase();
@@ -388,16 +549,22 @@ HTML_FOOTER = """
                                 <div class="flex items-center space-x-3 truncate">
                                     <span class="idx-label bg-indigo-50 text-indigo-600 w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-black">${i+1}</span>
                                     <span>${icon}</span>
-                                    <span class="font-bold text-gray-700 truncate text-sm">${f.name}</span>
+                                    <div class="truncate">
+                                        <span class="font-bold text-gray-700 truncate text-sm block">${f.name}</span>
+                                        <span class="text-gray-400 text-xs font-bold">${formatSize(f.size)}</span>
+                                    </div>
                                 </div>
-                                <button onclick="removeFileFromMerge(${f.uniqueId})" class="text-gray-300 hover:text-red-500 font-black text-xl px-2">✕</button>
+                                <button onclick="removeFileFromMerge(${f.uniqueId})" class="text-gray-300 hover:text-red-500 font-black text-xl px-2 flex-shrink-0">✕</button>
                             </div>
                         `;
                     }).join('');
                 } else {
                     listMerge.querySelectorAll('.idx-label').forEach((el, i) => el.textContent = i + 1);
                 }
-            } else { listMerge.classList.add('hidden'); }
+            } else {
+                listMerge.classList.add('hidden');
+                sizeInfo.classList.add('hidden');
+            }
         }
 
         async function handleMergeUpload() {
@@ -406,6 +573,10 @@ HTML_FOOTER = """
             mergeFiles.forEach(f => formData.append('files', f));
             formData.append('wm_type', wmType.value);
             formData.append('wm_text', document.getElementById('wmText').value);
+            formData.append('wm_position', document.getElementById('wmPosition').value);
+            formData.append('wm_size', document.getElementById('wmSize').value);
+            formData.append('wm_opacity', (parseFloat(document.getElementById('wmOpacity').value) / 100).toFixed(2));
+            formData.append('wm_rotation', document.getElementById('wmRotation').value);
             const wmImgInput = document.getElementById('wmImage');
             if(wmType.value === 'image' && wmImgInput.files[0]) formData.append('wm_image', wmImgInput.files[0]);
             document.getElementById('loadingScreen').classList.remove('hidden');
@@ -417,7 +588,8 @@ HTML_FOOTER = """
                 setTimeout(() => showResult(res.data.download_url), 600);
             } catch (err) {
                 clearInterval(progressInterval);
-                alert('병합 실패!');
+                const msg = err.response?.data?.detail || '병합 중 오류가 발생했습니다. 다시 시도해주세요.';
+                showSystemToast(`❌ ${msg}`);
             } finally {
                 setTimeout(() => document.getElementById('loadingScreen').classList.add('hidden'), 1000);
             }
@@ -452,4 +624,3 @@ HTML_FOOTER = """
 
 # 최종 조립 (누락 없음)
 HTML_CONTENT = HTML_HEADER + ABOUT_SECTION + API_SECTION + HTML_FOOTER
-
