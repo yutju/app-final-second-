@@ -13,7 +13,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-# 📊 Prometheus 모니터링을 위한 임포트
+#  Prometheus 모니터링을 위한 임포트
 from prometheus_fastapi_instrumentator import Instrumentator
 from prometheus_client import Histogram, Counter, Gauge
 
@@ -21,7 +21,7 @@ from processor import PDFProcessor
 from templates import HTML_CONTENT
 
 # -------------------------------
-# 🔧 기본 설정 및 로깅
+#  기본 설정 및 로깅
 # -------------------------------
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("SixSense-Converter")
@@ -32,7 +32,7 @@ s3_client = boto3.client("s3", region_name="ap-northeast-2")
 app = FastAPI(title="SixSense Doc-Converter", version="1.0.0")
 
 # -------------------------------
-# 📊 커스텀 Prometheus 메트릭 정의
+#  커스텀 Prometheus 메트릭 정의
 # -------------------------------
 # 1. PDF 변환 소요 시간 측정 (Histogram)
 PDF_PROCESSING_TIME = Histogram(
@@ -55,7 +55,7 @@ CONVERSION_COUNT = Counter(
     ["status"] # success / fail 라벨링
 )
 
-# 4. 🔥 [추가] 현재 진행 중인 PDF 변환 작업 수 (Gauge)
+# 4. 현재 진행 중인 PDF 변환 작업 수 (Gauge)
 ACTIVE_CONVERSIONS = Gauge(
     "pdf_active_conversions_count",
     "Number of PDF conversions currently in progress"
@@ -65,7 +65,7 @@ ACTIVE_CONVERSIONS = Gauge(
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # -------------------------------
-# 🛡️ 보안 및 인프라 설정
+#  보안 및 인프라 설정
 # -------------------------------
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -78,7 +78,7 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 
 # -------------------------------
-# 🩺 Health & Readiness Checks (K8s용)
+#  Health & Readiness Checks (K8s용)
 # -------------------------------
 @app.get("/health", status_code=status.HTTP_200_OK)
 async def health_check():
@@ -90,7 +90,7 @@ async def readiness_check():
 
 
 # -------------------------------
-# 🧹 파일 정리 함수
+#  파일 정리 함수
 # -------------------------------
 def cleanup(path):
     try:
@@ -104,7 +104,7 @@ def cleanup(path):
 
 
 # -------------------------------
-# 🌐 메인 페이지
+#  메인 페이지
 # -------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -112,7 +112,7 @@ async def read_root(request: Request):
 
 
 # -------------------------------
-# 📄 단일 변환 → 내부적으로 병합 함수 사용
+#  단일 변환 → 내부적으로 병합 함수 사용
 # -------------------------------
 @app.post("/convert-single/")
 @limiter.limit("10/minute")
@@ -147,7 +147,7 @@ async def convert_single(
 
 
 # -------------------------------
-# 📑 병합 + 변환 (실시간 모니터링 포함)
+#  병합 + 변환 (실시간 모니터링 포함)
 # -------------------------------
 @app.post("/convert-merge/")
 @limiter.limit("5/minute")
@@ -171,10 +171,10 @@ async def convert_merge(
     wm_image_path = None
 
     try:
-        # 🚀 [Gauge] 실시간 변환 작업 수 증가
+        #  [Gauge] 실시간 변환 작업 수 증가
         ACTIVE_CONVERSIONS.inc()
         
-        # 📂 파일 저장
+        #  파일 저장
         for file in files:
             ext = os.path.splitext(file.filename)[1].lower().replace('.', '')
             path = os.path.join(TEMP_DIR, f"{uuid.uuid4()}.{ext}")
@@ -183,7 +183,7 @@ async def convert_merge(
                     f.write(chunk)
             input_paths.append(path)
 
-        # 🖼 워터마크 이미지 저장
+        #  워터마크 이미지 저장
         if wm_type == "image" and wm_image is not None:
             wm_image_data = await wm_image.read()
             if len(wm_image_data) > 0:
@@ -192,7 +192,7 @@ async def convert_merge(
                 with open(wm_image_path, "wb") as f:
                     f.write(wm_image_data)
 
-        # ⚙️ [성능 측정] PDF 처리
+        #  [성능 측정] PDF 처리
         start_proc = time.perf_counter()
         proc = PDFProcessor(TEMP_DIR)
         proc.process_merge(
@@ -202,7 +202,7 @@ async def convert_merge(
         )
         PDF_PROCESSING_TIME.observe(time.perf_counter() - start_proc)
 
-        # ☁️ [성능 측정] S3 업로드
+        #  [성능 측정] S3 업로드
         s3_key = f"output/{merge_id}.pdf"
         start_s3 = time.perf_counter()
         s3_client.upload_file(final_output_path, S3_BUCKET, s3_key)
@@ -217,7 +217,7 @@ async def convert_merge(
         # 성공 카운트 증가
         CONVERSION_COUNT.labels(status="success").inc()
 
-        # 🧹 백그라운드 정리
+        #  백그라운드 정리
         for p in input_paths: background_tasks.add_task(cleanup, p)
         background_tasks.add_task(cleanup, final_output_path)
         if wm_image_path: background_tasks.add_task(cleanup, wm_image_path)
@@ -236,5 +236,5 @@ async def convert_merge(
         raise HTTPException(status_code=500, detail="변환 실패")
 
     finally:
-        # 🚀 [Gauge] 성공/실패 여부와 상관없이 작업 종료 시 카운트 감소
+        #  [Gauge] 성공/실패 여부와 상관없이 작업 종료 시 카운트 감소
         ACTIVE_CONVERSIONS.dec()
