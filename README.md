@@ -50,7 +50,7 @@ SixSense Doc-Converter는 다양한 문서 포맷을 PDF로 변환하고, 워터
 
 ### Backend
 - **Python 3.10** / **FastAPI** — 비동기 API 서버
-- **LibreOffice** (xvfb-run headless) — DOCX/XLSX/PPTX/HWP → PDF 변환
+- **LibreOffice** (xvfb-run headless) — DOCX/XLSX/PPTX → PDF 변환
 - **Ghostscript** — 다중 PDF 병합
 - **pikepdf** — 워터마크 오버레이, PDF 암호화
 - **ReportLab** — 워터마크 레이어 생성
